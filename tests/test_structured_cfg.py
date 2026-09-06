@@ -29,7 +29,6 @@ EXPECTED_ACTOR_TERMS = [
     "axis_actual_normalized",
     "axis_target_normalized",
     "axis_mask",
-    "whole_body_com_xy",
 ]
 
 
@@ -39,6 +38,8 @@ def test_manager_terms_are_converted_from_configclasses() -> None:
 
     native = declarative.to_mjlab_cfg()
     assert list(native.observations["actor"].terms) == EXPECTED_ACTOR_TERMS
+    assert "whole_body_com_xy" not in native.observations["actor"].terms
+    assert "whole_body_com_xy" in native.observations["critic"].terms
     assert "support_center_xy" not in native.observations["actor"].terms
     assert "support_center_xy" in native.observations["critic"].terms
     assert list(native.actions) == ["joint_pos"]

@@ -65,25 +65,28 @@ The actor term order is intentionally fixed:
 
 `base_lin_vel, base_ang_vel, imu_lin_acc, projected_gravity,
 velocity_commands, joint_pos, joint_vel, actions, axis_actual_normalized,
-axis_target_normalized, axis_mask, whole_body_com_xy`.
+axis_target_normalized, axis_mask`.
 
-The pelvis-mounted MuJoCo gyro and velocimeter were already used by
-`base_ang_vel` and `base_lin_vel`. `imu_lin_acc` adds the physical
-accelerometer channel. `whole_body_com_xy` is the ground projection of the
-complete articulated robot's center of mass relative to the floating base,
-expressed in the base yaw frame.
+The pelvis-mounted MuJoCo gyro and velocimeter are used by `base_ang_vel` and
+`base_lin_vel`. `imu_lin_acc` is the physical accelerometer channel.
+`projected_gravity` stays in the actor because it can be reconstructed from the
+robot IMU/state estimator at deployment time.
 
 The critic inherits all actor observations and additionally receives
-`support_center_xy`. It is the mask-aware center of the foot support points in
-the same base-relative XY frame. If exactly one leg has any active joint mask,
-only the opposite foot is support; if neither or both legs have active masks,
-the midpoint of both feet is used.
+`whole_body_com_xy`, `support_center_xy`, `foot_height`, `foot_air_time`,
+`foot_contact`, and `foot_contact_forces`. `whole_body_com_xy` is the ground
+projection of the complete articulated robot's center of mass relative to the
+floating base, expressed in the base yaw frame, and is intentionally privileged
+(critic-only). `support_center_xy` is the mask-aware center of the foot support
+points in the same base-relative XY frame. If exactly one leg has any active
+joint mask, only the opposite foot is support; if neither or both legs have
+active masks, the midpoint of both feet is used.
 
 `axis_target_normalized` is hard-gated by the binary mask. Consequently an
 inactive joint always contributes exactly zero to the target observation,
 even if an old or malformed sender puts a nonzero value in that UDP field.
 
-The actor is now 191D and the critic is 205D. Checkpoints trained with the
+The actor is now 189D and the critic is 205D. Checkpoints trained with the
 previous observation ABI are not shape-compatible; train a new policy from
 scratch after this change.
 

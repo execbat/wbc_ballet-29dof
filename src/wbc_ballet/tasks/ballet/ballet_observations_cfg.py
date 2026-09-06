@@ -58,7 +58,6 @@ class BalletPolicyCfg(ObsGroup):
     # prevents inactive UDP slider values from leaking into the policy.
     axis_target_normalized: ObsTerm | None = ObsTerm(func=ballet_mdp.masked_ballet_targets)
     axis_mask: ObsTerm | None = ObsTerm(func=ballet_mdp.ballet_mask)
-    whole_body_com_xy: ObsTerm | None = ObsTerm(func=ballet_mdp.whole_body_com_xy_b)
     height_scan: ObsTerm | None = None
 
     def __post_init__(self):
@@ -72,6 +71,9 @@ class BalletPolicyCfg(ObsGroup):
 
 @configclass
 class BalletCriticCfg(BalletPolicyCfg):
+    # Privileged observation: computed from the full simulated articulated-body state.
+    # It is intentionally unavailable to the actor/deployed policy.
+    whole_body_com_xy: ObsTerm | None = ObsTerm(func=ballet_mdp.whole_body_com_xy_b)
     support_center_xy: ObsTerm | None = ObsTerm(
         func=ballet_mdp.support_center_xy_b,
         params={

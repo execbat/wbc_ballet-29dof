@@ -4,6 +4,8 @@ Train Unitree G1 (29 DoF) to combine locomotion with masked whole-body pose
 commands. The simulator is MJLab (MuJoCo + Warp), and PPO is provided by
 `rsl_rl`. Isaac Lab and Isaac Sim are not dependencies.
 
+Deployment repository is here: [wbc_ballet-29dof_deploy](https://github.com/execbat/wbc_ballet-29dof_deploy)
+
 
 ## Install
 

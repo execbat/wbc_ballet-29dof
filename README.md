@@ -88,7 +88,7 @@ active masks, the midpoint of both feet is used.
 inactive joint always contributes exactly zero to the target observation,
 even if an old or malformed sender puts a nonzero value in that UDP field.
 
-The actor is now 186D and the critic is 202D. Checkpoints trained with the
+The actor is now 186D and the critic is 205D. Checkpoints trained with the
 previous observation ABI are not shape-compatible; train a new policy from
 scratch after this change.
 

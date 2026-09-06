@@ -4,11 +4,6 @@ Train Unitree G1 (29 DoF) to combine locomotion with masked whole-body pose
 commands. The simulator is MJLab (MuJoCo + Warp), and PPO is provided by
 `rsl_rl`. Isaac Lab and Isaac Sim are not dependencies.
 
-The task ports the command/policy contract from `execbat/Orbit`. The complete
-G1 model needed by this repository is copied into `src/wbc_ballet/robots/g1`:
-both MJCF variants, their scene files, every STL mesh, the actuator model,
-torque-speed envelope, home pose, collision configuration, and MJLab
-articulation. Runtime does not load the robot from the `wbc-mjlab` package.
 
 ## Install
 
@@ -198,47 +193,6 @@ An inherited term can be overridden by redeclaring the same field, or disabled
 with `term_name: TermCfg | None = None`. `configclass` deep-copies mutable term
 defaults, so changing a play/rough instance cannot mutate a training/flat one.
 
-## Provenance
-
-- Environment semantics: `execbat/Orbit` at `98e2b749b5f025079f3529b7cff568f2f8eca274`.
-- Packaging pattern: `execbat/microduck_rl`, branch `feat/structured_cfg`, at
-  `373ecaa1512ef5e939d5daf6c586ca4338dd1977`.
-- G1 asset/model: `wbc-mjlab/wbc-mjlab` 0.0.5, source revision
-  `9d3255828088839ab087f96ac64fd2a8b10c9343`.
-
-## 23DoF -> 29DoF port
-
-The task, protocol, and teleop layers now target the full G1-29DoF model
-(`robots/g1/xmls/g1.xml`) instead of the 23DoF variant
-(`robots/g1/xmls/g1_23dof.xml`). The 29DoF model adds `waist_roll`/
-`waist_pitch` and `wrist_pitch`/`wrist_yaw` (both arms) on top of the 23DoF
-joint set. `robots/g1/actuators.py`'s articulation groups already targeted
-these joints before this port (`G1_ACTUATOR_WAIST`, `G1_ACTUATOR_4010`) --
-loading them against the 23DoF model raised `ValueError: Not all regular
-expressions are matched!` at entity-construction time, since those joints
-don't exist there. That mismatch is what made this port necessary.
-
-Every axis-ordered surface (`mdp/commands.py`'s 61D command tensor,
-`mdp/observations.py`'s target/mask slices, `teleop/protocol.py`'s UDP
-packet, `gamepad/game_emulator_run_v1.py`'s sliders) now uses the SAME
-29-joint order: the robot's canonical MJCF declaration order (locked by
-`tests/test_g1_asset.py::test_model_joint_order_matches_canonical_order`).
-This is also the order mjlab resolves observations/actions into internally
-(an unfiltered `SceneEntityCfg`/`JointPositionActionCfg(actuator_names=
-(".*",))` both resolve to natural joint order, not actuator-group order or
-pattern-list order -- verified against mjlab 1.5.3's source).
-
-**Bug found and fixed along the way**: the pre-port `gamepad/
-game_emulator_run_v1.py`'s `JOINT_NAMES` list used Orbit's own axis order
-(interleaved left/right, legs mixed with arms), which did not match the
-order the trained policy actually used. That mismatch meant the tool's
-slider labels did not correspond to the axes they actually drove. Fixed as
-part of this port; the corrected order is documented in that file.
-
-The 23DoF model/loader (`robots/g1/xmls/g1_23dof.xml`,
-`assets/g1_23dof.py::get_g1_23dof_robot_cfg`) are left in the repository as
-reference and are still covered by a structural test, but are no longer
-used by the active ballet task or its registered gym task IDs.
   
 # Launch scene via MuJoCO viewer
 ```text  

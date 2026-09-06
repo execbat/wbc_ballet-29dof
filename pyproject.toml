@@ -1,0 +1,48 @@
+[build-system]
+requires = ["uv_build>=0.8.19,<0.9.0"]
+build-backend = "uv_build"
+
+[project]
+name = "wbc-ballet"
+version = "0.1.0"
+description = "Unitree G1-29DoF ballet training on MJLab (MuJoCo + Warp) and rsl_rl"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  # Keep the simulator stack reproducible.  In particular, do not let a plain
+  # `uv run` upgrade Torch to a CUDA 13 build on CUDA 12.8 driver machines.
+  "mjlab==1.5.3",
+  "numpy<2.5",
+  "torch==2.11.0",
+  "warp-lang==1.17.0",
+]
+
+[project.entry-points."mjlab.tasks"]
+wbc_ballet = "wbc_ballet.tasks"
+
+[project.scripts]
+wbc-ballet-teleop = "wbc_ballet.teleop.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.14"]
+
+[tool.uv]
+# Training is supported on the same target as the G1 workstation setup.  This
+# keeps the universal resolver from selecting unrelated ARM/CPU Torch wheels.
+environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+
+[tool.ruff]
+src = ["src"]
+line-length = 100
+extend-exclude = ["src/wbc_ballet/robots/g1", "src/wbc_ballet/utils"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

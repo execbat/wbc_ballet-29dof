@@ -27,43 +27,6 @@ uv run train Mjlab-Ballet-Flat-Unitree-G1-29DoF \
   --agent.max-iterations 5
 ```
 
-### NaN/Inf protection
-
-The task rejects non-finite values at every environment boundary used by PPO:
-
-- a physics state or raw policy action containing NaN/Inf terminates and resets
-  only the affected environment;
-- actor and critic observations are checked after concatenation, reported in
-  the console, and sanitized before they are returned to `rsl_rl`;
-- MJLab 1.5.3 sanitizes every weighted reward term before accumulating it.
-
-Numerical failures are logged independently from falls and timeouts. Look for
-`Episode_Termination/non_finite_state` and the `Episode_Metrics/nan_*`,
-`Episode_Metrics/inf_*`, and `Episode_Metrics/nonfinite_*` series in
-TensorBoard. The per-component series distinguish `qpos`, `qvel`, `qacc`,
-`qacc_warmstart`, sensor data, and policy actions.
-
-For a short diagnostic run, enable MJLab's rolling state dump:
-
-```bash
-uv run train Mjlab-Ballet-Flat-Unitree-G1-29DoF \
-  --env.scene.num-envs 512 \
-  --enable-nan-guard True
-```
-
-The first detected failure writes the preceding 32 physics states and the
-compiled model to `logs/nan_dumps`. Inspect it with:
-
-```bash
-uv run viz-nan logs/nan_dumps/nan_dump_latest.npz
-```
-
-The rolling dump is deliberately opt-in because it synchronizes the GPU every
-physics substep. Episode metrics and automatic resets remain enabled in normal
-4096-environment training. Do not resume from a checkpoint whose actor, critic,
-or optimizer parameters already contain NaN; start from the last finite
-checkpoint after installing this protection.
-
 ## UDP play environment
 
 The registered play configuration listens on `127.0.0.1:55001` and consumes
@@ -84,14 +47,6 @@ observation, and the reward.
 
 Start the policy using MJLab's `play` command and send a test command from a
 second terminal:
-
-```bash
-uv run play Mjlab-Ballet-Flat-Unitree-G1-29DoF \
-  --checkpoint-file /path/to/model_650.pt \
-  --viewer native \
-  --num-envs 1
-uv run wbc-ballet-teleop --joint 15 --target 0.4 --vx 0.2
-```
 
 Malformed or non-finite UDP packets are ignored. The last valid command stays
 active, matching Orbit's non-blocking last-value behavior.
@@ -132,41 +87,6 @@ The actor is now 191D and the critic is 205D. Checkpoints trained with the
 previous observation ABI are not shape-compatible; train a new policy from
 scratch after this change.
 
-## Training curriculum
-
-Training starts with a locomotion-only phase. For the first 300 PPO iterations
-every mask is zero and `target_scale` is zero. From iteration 300 through
-5,300, `mask_probability` grows linearly from `0.0` to `0.15` while
-`target_scale` grows linearly from `0.0` to `0.8`. After that both stay at
-their final values (4.35 active joints on average). The schedule values are
-defined at the top of `ballet_curriculum_cfg.py`.
-
-The locomotion reward now contains mask-aware human-posture priors: standing
-pelvis height, sagittal-plane hip/ankle alignment, forward foot heading during
-near-straight motion, and whole-body CoM alignment with the support-center
-projection. A mask anywhere on one leg disables that leg's posture prior;
-pitch joints remain free for gait. Safety and CoM/support terms remain active.
-If any axis of a leg is masked, that whole leg is treated as commanded and
-contact between its foot and the ground incurs a per-leg penalty. No leg mask
-means no such penalty, so normal locomotion support is unaffected during the
-walking-only curriculum phase.
-
-`target_scale` controls how far the sampled command moves from the robot's
-current normalized pose toward a full-range random goal. At curriculum
-progress `p`, `target = lerp(current, Uniform(-0.8, 0.8), p)`. Thus scale zero
-creates no initial pose error, scale `0.4` applies half of the displacement,
-and scale `0.8` applies the full goal. Here `-1` and `+1` correspond to the
-lower and upper joint limits. This changes target difficulty, not motor speed
-or policy action scale.
-
-Training episodes last 24 seconds. The complete 61D training command is
-resampled at a random interval of 6–10 seconds, so the policy experiences
-multiple command changes within a successful episode. UDP play keeps its
-effectively infinite manager resampling interval because incoming packets are
-polled every policy step instead.
-
-The complete reward/penalty audit, new weights, and rationale are documented
-in [`REWARD_DESIGN.md`](REWARD_DESIGN.md).
 
 ## Structured task configuration
 
@@ -222,10 +142,12 @@ uv run python ./gamepad/game_emulator_run_v1.py
 ```
 
 # EXPORT INTO ONNX
+```text
 uv run python scripts/export.py \
   Mjlab-Ballet-Flat-Unitree-G1-29DoF \
   --checkpoint-file ./logs/rsl_rl/g1_29dof_ballet/2026-09-05_23-52-26_ballet/model_15500.pt \
   --onnx-file g1_29dof_wbc_ballet.onnx
+```  
 
 # RUN TENSORBOARD
 ```text

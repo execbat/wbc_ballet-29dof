@@ -17,7 +17,7 @@ class BalletCommandsCfg:
         # Curriculum keeps this at zero for the locomotion warm-up and then
         # increases it to the configured final probability.
         mask_probability=0.0,
-        velocity_ranges=((0.0, -1.0, -1.0), (1.0, 1.0, 1.0)),
+        velocity_ranges=((-1.0, -1.0, -1.0), (1.0, 1.0, 1.0)),
     )
 
 

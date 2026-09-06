@@ -75,6 +75,12 @@ class BalletPolicyCfg(ObsGroup):
 class BalletCriticCfg(BalletPolicyCfg):
     # Privileged observation: computed from the full simulated articulated-body state.
     # It is intentionally unavailable to the actor/deployed policy.
+    
+    base_lin_vel: ObsTerm | None = ObsTerm(
+        func=mdp.builtin_sensor,
+        params={"sensor_name": G1_IMU_LIN_VEL_SENSOR},
+        noise=Unoise(n_min=-0.1, n_max=0.1),
+    )    
     whole_body_com_xy: ObsTerm | None = ObsTerm(func=ballet_mdp.whole_body_com_xy_b)
     support_center_xy: ObsTerm | None = ObsTerm(
         func=ballet_mdp.support_center_xy_b,

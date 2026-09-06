@@ -4,7 +4,7 @@ This document describes the observation ABI for the 29-DoF ballet policy.
 The order of terms matters because the concatenated observation vector is the
 input ABI of the neural network.
 
-## Actor observations — 189D
+## Actor observations — 186D
 
 The actor receives only observations intended to be available or reconstructable
 on the real robot.
@@ -36,7 +36,7 @@ Dimension check:
 The critic receives all **189D actor observations** plus **16D privileged
 simulation observations** used only during training.
 
-### Actor observations inherited by the critic — 189D
+### Actor observations inherited by the critic — 186D
 
 1. `base_ang_vel` — 3
 2. `imu_lin_acc` — 3
@@ -49,29 +49,31 @@ simulation observations** used only during training.
 9. `axis_target_normalized` — 29
 10. `axis_mask` — 29
 
-### Additional privileged critic observations — 16D
+### Additional privileged critic observations — 19D
 
 | # | Observation | Dim | Description |
 |---:|---|---:|---|
-| 12 | `whole_body_com_xy` | 2 | Whole-body center-of-mass XY position relative to the floating base, expressed in the base yaw frame. Computed from the full articulated simulation state. |
-| 13 | `support_center_xy` | 2 | Mask-aware center of the active foot support region relative to the base. |
-| 14 | `foot_height` | 2 | Left/right foot height. |
-| 15 | `foot_air_time` | 2 | Left/right foot air time. |
-| 16 | `foot_contact` | 2 | Left/right foot contact state. |
-| 17 | `foot_contact_forces` | 6 | 3D contact force for each foot: `2 x [Fx, Fy, Fz]`. |
-|  | **Privileged subtotal** | **16** | |
-|  | **Critic total** | **202** | |
+
+| 12 | `base_lin_vel`        | 3 | 
+| 13 | `whole_body_com_xy`   | 2 | Whole-body center-of-mass XY position relative to the floating base, expressed in the base yaw frame. Computed from the full articulated simulation state. |
+| 14 | `support_center_xy`   | 2 | Mask-aware center of the active foot support region relative to the base. |
+| 15 | `foot_height`         | 2 | Left/right foot height. |
+| 16 | `foot_air_time`       | 2 | Left/right foot air time. |
+| 17 | `foot_contact`        | 2 | Left/right foot contact state. |
+| 18 | `foot_contact_forces` | 6 | 3D contact force for each foot: `2 x [Fx, Fy, Fz]`. |
+|  | **Privileged subtotal** | **19** | |
+|  | **Critic total** | **205** | |
 
 Dimension check:
 
 ```text
-186 + 2 + 2 + 2 + 2 + 2 + 6 = 202
+186 + 3+ 2 + 2 + 2 + 2 + 2 + 6 = 205
 ```
 
 ## Final ABI
 
 ```text
-Actor:  189D
+Actor:  186D
 Critic: 205D
 ```
 

@@ -22,11 +22,13 @@ _TERRAIN_SCAN_MAX_DISTANCE = 5.0
 class BalletPolicyCfg(ObsGroup):
     # Pelvis-mounted IMU signals. Gyro and velocimeter were already present;
     # the physical accelerometer channel is added explicitly.
-    base_lin_vel: ObsTerm | None = ObsTerm(
-        func=mdp.builtin_sensor,
-        params={"sensor_name": G1_IMU_LIN_VEL_SENSOR},
-        noise=Unoise(n_min=-0.1, n_max=0.1),
-    )
+    
+#    base_lin_vel: ObsTerm | None = ObsTerm( NOT POSSIBLE TO GRASP FROM ROS2 TOPICS ON THE ROBOT
+#        func=mdp.builtin_sensor,
+#        params={"sensor_name": G1_IMU_LIN_VEL_SENSOR},
+#        noise=Unoise(n_min=-0.1, n_max=0.1),
+#    )
+
     base_ang_vel: ObsTerm | None = ObsTerm(
         func=mdp.builtin_sensor,
         params={"sensor_name": G1_IMU_ANG_VEL_SENSOR},

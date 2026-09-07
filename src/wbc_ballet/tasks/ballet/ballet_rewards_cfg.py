@@ -52,7 +52,7 @@ class BalletRewardsCfg:
     # leg-specific prior for that leg, while the other leg remains regularized.
     pelvis_height_tracking: RewTerm | None = RewTerm(
         func=ballet_mdp.pelvis_height_tracking,
-        weight=0.0,
+        weight=1.0,
         params={
             "target_height": 0.8,
             "std": 0.18,
@@ -104,7 +104,7 @@ class BalletRewardsCfg:
     )
     com_support_projection: RewTerm | None = RewTerm(
         func=ballet_mdp.com_support_projection_tracking,
-        weight=0.0,
+        weight=1.0,
         params={
             "std": 0.12,
             "feet_cfg": SceneEntityCfg(

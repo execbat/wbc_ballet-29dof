@@ -102,50 +102,38 @@ def commanded_leg_ground_contact(
     right_leg_cfg: SceneEntityCfg,
     velocity_epsilon: float = 1.0e-4,
 ) -> torch.Tensor:
-    """Penalize missing ground contact for the support leg(s) while stationary.
+    """Penalize invalid support/non-support foot contacts.
 
-    The term is active only when all three ``velocity_commands`` are zero
-    (within ``velocity_epsilon``). Support-leg semantics are mask-aware:
-
-    * no active leg masks -> both feet are support feet and both must contact ground;
-    * exactly one leg masked -> the other, unmasked leg is the support leg;
-    * both legs masked -> the leg whose mask became active first is treated as
-      the commanded/non-supporting leg, and the other leg is the support leg.
-
-    If both leg masks rise on the same control step there is no unique
-    "earlier" leg, so both feet are conservatively required to stay in contact.
-
-    Returns the number of required support feet that are not touching ground
-    (0, 1, or 2). The reward configuration applies a negative weight.
+    Support legs must stay on the ground while stationary.
+    Non-support legs must stay off the ground regardless of velocity.
+    If both legs are masked, the leg masked first is non-support.
     """
+
     sensor = env.scene[sensor_name]
     if not isinstance(sensor, ContactSensor):
         raise TypeError(f"{sensor_name!r} must be a ContactSensor, got {type(sensor).__name__}")
-    found = sensor.data.found
-    if found is None:
+    if sensor.data.found is None:
         raise ValueError(f"ContactSensor {sensor_name!r} must expose the 'found' field")
 
-    primary_names = sensor.primary_names
     try:
-        foot_indices = [
-            primary_names.index("left_ankle_roll_link"),
-            primary_names.index("right_ankle_roll_link"),
+        foot_ids = [
+            sensor.primary_names.index("left_ankle_roll_link"),
+            sensor.primary_names.index("right_ankle_roll_link"),
         ]
     except ValueError as exc:
         raise ValueError(
-            f"ContactSensor {sensor_name!r} must contain G1 foot primaries; got {primary_names}"
+            f"ContactSensor {sensor_name!r} must contain G1 foot primaries; got {sensor.primary_names}"
         ) from exc
 
-    contacts = found[:, foot_indices] > 0
+    contacts = sensor.data.found[:, foot_ids] > 0
     left_active = _group_has_active_mask(env, left_leg_cfg)
     right_active = _group_has_active_mask(env, right_leg_cfg)
+    num_envs = left_active.shape[0]
 
-    # Track rising-edge activation time per environment. This state is updated
-    # even while the robot is moving so support selection is correct when the
-    # commanded velocity later returns to zero.
+    # Track when each leg mask becomes active.
     state_name = "_commanded_leg_ground_contact_state"
     state = getattr(env, state_name, None)
-    num_envs = left_active.shape[0]
+
     if state is None or state["left_prev"].shape[0] != num_envs:
         inf = torch.full((num_envs,), float("inf"), device=left_active.device)
         state = {
@@ -159,49 +147,53 @@ def commanded_leg_ground_contact(
     step = float(getattr(env, "common_step_counter", 0))
     left_rising = left_active & ~state["left_prev"]
     right_rising = right_active & ~state["right_prev"]
+
     state["left_on_step"] = torch.where(
         left_rising, torch.full_like(state["left_on_step"], step), state["left_on_step"]
     )
     state["right_on_step"] = torch.where(
         right_rising, torch.full_like(state["right_on_step"], step), state["right_on_step"]
     )
-    state["left_on_step"] = torch.where(
-        left_active, state["left_on_step"], torch.full_like(state["left_on_step"], float("inf"))
-    )
-    state["right_on_step"] = torch.where(
-        right_active, state["right_on_step"], torch.full_like(state["right_on_step"], float("inf"))
-    )
+
+    inf_left = torch.full_like(state["left_on_step"], float("inf"))
+    inf_right = torch.full_like(state["right_on_step"], float("inf"))
+    state["left_on_step"] = torch.where(left_active, state["left_on_step"], inf_left)
+    state["right_on_step"] = torch.where(right_active, state["right_on_step"], inf_right)
     state["left_prev"] = left_active.clone()
     state["right_prev"] = right_active.clone()
 
-    support_left = ~left_active & ~right_active
-    support_right = support_left.clone()
+    # Determine support legs.
+    neither = ~left_active & ~right_active
+    support_left = neither | (~left_active & right_active)
+    support_right = neither | (left_active & ~right_active)
 
-    # One masked leg: the unmasked leg is the support leg.
-    support_left |= ~left_active & right_active
-    support_right |= left_active & ~right_active
+    # With both masks active, the earlier-masked leg is non-support.
+    both = left_active & right_active
+    left_earlier = both & (state["left_on_step"] < state["right_on_step"])
+    right_earlier = both & (state["right_on_step"] < state["left_on_step"])
+    simultaneous = both & ~(left_earlier | right_earlier)
 
-    # Both masked: earlier activation is non-supporting; later activation is
-    # support. Equal activation times are ambiguous, so require both contacts.
-    both_active = left_active & right_active
-    left_earlier = state["left_on_step"] < state["right_on_step"]
-    right_earlier = state["right_on_step"] < state["left_on_step"]
-    simultaneous = both_active & ~(left_earlier | right_earlier)
-    support_right |= both_active & left_earlier
-    support_left |= both_active & right_earlier
-    support_left |= simultaneous
-    support_right |= simultaneous
+    support_left |= right_earlier | simultaneous
+    support_right |= left_earlier | simultaneous
 
+    # Support contact is required only while stationary.
     command = env.command_manager.get_command("ballet")[:, :3]
     stationary = command.abs().amax(dim=1) <= velocity_epsilon
-    missing_support_contact = torch.stack(
-        (support_left & ~contacts[:, 0], support_right & ~contacts[:, 1]), dim=1
-    )
-    return torch.where(
-        stationary,
-        missing_support_contact.sum(dim=1).float(),
-        torch.zeros(num_envs, device=contacts.device),
-    )
+
+    left_contact, right_contact = contacts[:, 0], contacts[:, 1]
+
+    # Support foot in air -> penalty only while stationary.
+    left_missing = stationary & support_left & ~left_contact
+    right_missing = stationary & support_right & ~right_contact
+
+    # Non-support foot on ground -> penalty regardless of velocity.
+    left_unexpected = ~support_left & left_contact
+    right_unexpected = ~support_right & right_contact
+
+    left_violation = left_missing | left_unexpected
+    right_violation = right_missing | right_unexpected
+
+    return (left_violation.float() + right_violation.float())
 
 def com_support_projection_tracking(
     env: ManagerBasedRlEnv,

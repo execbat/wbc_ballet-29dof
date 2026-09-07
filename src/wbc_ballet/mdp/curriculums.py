@@ -140,3 +140,85 @@ def target_scale_curriculum(
         "scale": torch.tensor(scale, device=env.device),
         "progress": torch.tensor(progress, device=env.device),
     }
+
+
+def staged_value_at_step(
+    step: int,
+    *,
+    start_steps: int,
+    stage_interval_steps: int,
+    stage_values: tuple[float, ...],
+) -> tuple[float, int]:
+    """Return a thresholded curriculum value and its zero-based stage index.
+
+    Before ``start_steps`` the value is zero and the stage index is ``-1``.
+    At ``start_steps`` stage 0 starts, then advances every
+    ``stage_interval_steps`` until the final value is reached.
+    """
+    if start_steps < 0:
+        raise ValueError("start_steps must be non-negative")
+    if stage_interval_steps <= 0:
+        raise ValueError("stage_interval_steps must be positive")
+    if not stage_values:
+        raise ValueError("stage_values must not be empty")
+    if step < start_steps:
+        return 0.0, -1
+    stage = min((step - start_steps) // stage_interval_steps, len(stage_values) - 1)
+    return float(stage_values[stage]), int(stage)
+
+
+def reward_weight_curriculum(
+    env: ManagerBasedRlEnv,
+    env_ids: torch.Tensor,
+    *,
+    reward_name: str,
+    start_steps: int,
+    stage_interval_steps: int,
+    stage_weights: tuple[float, ...],
+) -> dict[str, torch.Tensor]:
+    """Increase a reward weight in discrete threshold stages."""
+    del env_ids
+    weight, stage = staged_value_at_step(
+        env.common_step_counter,
+        start_steps=start_steps,
+        stage_interval_steps=stage_interval_steps,
+        stage_values=stage_weights,
+    )
+    cfg = env.reward_manager.get_term_cfg(reward_name)
+    cfg.weight = weight
+    return {
+        "weight": torch.tensor(weight, device=env.device),
+        "stage": torch.tensor(stage, device=env.device),
+    }
+
+
+def push_velocity_range_curriculum(
+    env: ManagerBasedRlEnv,
+    env_ids: torch.Tensor,
+    *,
+    event_name: str,
+    start_steps: int,
+    stage_interval_steps: int,
+    stage_half_ranges: tuple[float, ...] = (0.3, 0.4, 0.5),
+) -> dict[str, torch.Tensor]:
+    """Increase X/Y push velocity range in discrete threshold stages."""
+    del env_ids
+    half_range, stage = staged_value_at_step(
+        env.common_step_counter,
+        start_steps=start_steps,
+        stage_interval_steps=stage_interval_steps,
+        stage_values=stage_half_ranges,
+    )
+    # Pushes are already configured at ±0.3 from the beginning. Before the
+    # curriculum start keep that initial range instead of disabling pushes.
+    if stage < 0:
+        half_range = float(stage_half_ranges[0])
+    cfg = env.event_manager.get_term_cfg(event_name)
+    cfg.params["velocity_range"] = {
+        "x": (-half_range, half_range),
+        "y": (-half_range, half_range),
+    }
+    return {
+        "half_range": torch.tensor(half_range, device=env.device),
+        "stage": torch.tensor(stage, device=env.device),
+    }

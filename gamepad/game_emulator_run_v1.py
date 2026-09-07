@@ -25,7 +25,7 @@ GUI_REFRESH_PERIOD_S = 1.0 / 20.0
 STATUS_INTERVAL_S = 1.0
 
 SLIDER_MIN, SLIDER_MAX = -1.0, 1.0
-EXTRA_SPEED_MIN, EXTRA_SPEED_MAX = 0.0, 1.0  # v_x ∈ [0,1]
+EXTRA_SPEED_MIN, EXTRA_SPEED_MAX = -1.0, 3.0  # v_x ∈ [-1,3]
 EXTRA_LR_MIN, EXTRA_LR_MAX = -1.0, 1.0  # v_y
 EXTRA_ANGLE_MIN, EXTRA_ANGLE_MAX = -1.0, 1.0  # ω_z ∈ [−1,1]
 
@@ -514,7 +514,7 @@ class AxisControlApp(tk.Tk):
 
         self._add_extra_slider(
             base + 1,
-            "Speed X (0‥1)",
+            "Speed X (−1‥3)",
             self.speed_x_var,
             EXTRA_SPEED_MIN,
             EXTRA_SPEED_MAX,

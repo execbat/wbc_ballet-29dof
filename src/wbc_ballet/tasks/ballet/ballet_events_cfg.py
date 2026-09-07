@@ -10,6 +10,8 @@ from wbc_ballet.utils.configclass import configclass
 
 _FOOT_GEOMS = tuple(f"{side}_foot{i}_collision" for side in ("left", "right") for i in range(1, 8))
 _JOINT_TABLE_INTERVAL_S = 5.0
+VELOCITY_PUSH_RANGE = (-0.3, 0.3)
+VELOCITY_PUSH_INTERVAL_S = (3.0, 6.0)
 
 
 @configclass
@@ -41,8 +43,11 @@ class BalletEventsCfg:
     push_robot: EventTerm | None = EventTerm(
         func=mdp.push_by_setting_velocity,
         mode="interval",
-        interval_range_s=(10.0, 15.0),
-        params={"velocity_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5)}},
+        interval_range_s=VELOCITY_PUSH_INTERVAL_S,
+        params={
+            "velocity_range": {"x": VELOCITY_PUSH_RANGE, "y": VELOCITY_PUSH_RANGE},
+            "asset_cfg": SceneEntityCfg("robot"),
+        },
     )
     foot_friction: EventTerm | None = EventTerm(
         mode="startup",

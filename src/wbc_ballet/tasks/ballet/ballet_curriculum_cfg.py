@@ -16,6 +16,15 @@ FINAL_MASK_PROBABILITY = 0.15
 TARGET_SCALE_RAMP_ITERATIONS = 5_000
 FINAL_TARGET_SCALE = 0.8
 
+# Balance curricula start only after locomotion-only + mask-ramp training.
+BALANCE_CURRICULUM_START_ITERATION = WALK_ONLY_ITERATIONS 
+BALANCE_CURRICULUM_STAGE_INTERVAL_ITERATIONS = 1_000
+BALANCE_REWARD_STAGE_WEIGHTS = (1.0 / 3.0, 2.0 / 3.0, 1.0)
+PUSH_STAGE_HALF_RANGES = (0.3, 0.4, 0.5)
+
+COMMANDED_LEG_CONTACT_STAGE_INTERVAL_ITERATIONS = 3_000
+COMMANDED_LEG_CONTACT_STAGE_WEIGHTS = (-1.0, -2.0, -3.0, -4.0)
+
 
 @configclass
 class BalletCurriculumCfg:
@@ -41,7 +50,46 @@ class BalletCurriculumCfg:
             "final_scale": FINAL_TARGET_SCALE,
         },
     )
-
+    pelvis_height_tracking_weight: CurrTerm | None = CurrTerm(
+        func=ballet_mdp.reward_weight_curriculum,
+        params={
+            "reward_name": "pelvis_height_tracking",
+            "start_steps": BALANCE_CURRICULUM_START_ITERATION * PPO_STEPS_PER_ITERATION,
+            "stage_interval_steps": BALANCE_CURRICULUM_STAGE_INTERVAL_ITERATIONS
+            * PPO_STEPS_PER_ITERATION,
+            "stage_weights": BALANCE_REWARD_STAGE_WEIGHTS,
+        },
+    )
+    com_support_projection_weight: CurrTerm | None = CurrTerm(
+        func=ballet_mdp.reward_weight_curriculum,
+        params={
+            "reward_name": "com_support_projection",
+            "start_steps": BALANCE_CURRICULUM_START_ITERATION * PPO_STEPS_PER_ITERATION,
+            "stage_interval_steps": BALANCE_CURRICULUM_STAGE_INTERVAL_ITERATIONS
+            * PPO_STEPS_PER_ITERATION,
+            "stage_weights": BALANCE_REWARD_STAGE_WEIGHTS,
+        },
+    )
+    push_velocity_range: CurrTerm | None = CurrTerm(
+        func=ballet_mdp.push_velocity_range_curriculum,
+        params={
+            "event_name": "push_robot",
+            "start_steps": BALANCE_CURRICULUM_START_ITERATION * PPO_STEPS_PER_ITERATION,
+            "stage_interval_steps": BALANCE_CURRICULUM_STAGE_INTERVAL_ITERATIONS
+            * PPO_STEPS_PER_ITERATION,
+            "stage_half_ranges": PUSH_STAGE_HALF_RANGES,
+        },
+    )
+    commanded_leg_ground_contact_weight: CurrTerm | None = CurrTerm(
+        func=ballet_mdp.reward_weight_curriculum,
+        params={
+            "reward_name": "commanded_leg_ground_contact",
+            "start_steps": 0,
+            "stage_interval_steps": COMMANDED_LEG_CONTACT_STAGE_INTERVAL_ITERATIONS
+            * PPO_STEPS_PER_ITERATION,
+            "stage_weights": COMMANDED_LEG_CONTACT_STAGE_WEIGHTS,
+        },
+    )
 
 @configclass
 class BalletRoughCurriculumCfg(BalletCurriculumCfg):
@@ -56,3 +104,6 @@ class BalletPlayCurriculumCfg(BalletCurriculumCfg):
     terrain_levels: CurrTerm | None = None
     mask_probability: CurrTerm | None = None
     target_scale: CurrTerm | None = None
+    pelvis_height_tracking_weight: CurrTerm | None = None
+    com_support_projection_weight: CurrTerm | None = None
+    push_velocity_range: CurrTerm | None = None

@@ -5,6 +5,9 @@ from .commands import BalletCommandCfg, UdpBalletCommandCfg, blend_joint_targets
 from .curriculums import (
     mask_probability_at_step,
     mask_probability_curriculum,
+    push_velocity_range_curriculum,
+    reward_weight_curriculum,
+    staged_value_at_step,
     target_scale_at_step,
     target_scale_curriculum,
 )
@@ -61,6 +64,9 @@ __all__ = [
     "pelvis_height_below",
     "pelvis_height_tracking",
     "print_joint_observation_table",
+    "push_velocity_range_curriculum",
+    "reward_weight_curriculum",
+    "staged_value_at_step",
     "support_center_xy_b",
     "target_scale_at_step",
     "target_scale_curriculum",

@@ -10,7 +10,7 @@ from wbc_ballet.utils.configclass import configclass
 
 _FOOT_GEOMS = tuple(f"{side}_foot{i}_collision" for side in ("left", "right") for i in range(1, 8))
 _JOINT_TABLE_INTERVAL_S = 5.0
-VELOCITY_PUSH_RANGE = (-0.3, 0.3)
+VELOCITY_PUSH_RANGE = (-0.15, 0.15)
 VELOCITY_PUSH_INTERVAL_S = (3.0, 6.0)
 
 

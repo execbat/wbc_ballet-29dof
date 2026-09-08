@@ -19,7 +19,7 @@ class BalletRewardsCfg:
     )
     track_angular_velocity: RewTerm | None = RewTerm(
         func=ballet_mdp.track_ballet_angular_velocity,
-        weight=2.0,
+        weight=3.0,
         params={"std": math.sqrt(0.5)},
     )
     upright: RewTerm | None = RewTerm(
@@ -114,6 +114,7 @@ class BalletRewardsCfg:
             ),
             "left_leg_cfg": SceneEntityCfg("robot", joint_names=(r"left_(hip|knee|ankle)_.*",)),
             "right_leg_cfg": SceneEntityCfg("robot", joint_names=(r"right_(hip|knee|ankle)_.*",)),
+            "velocity_epsilon": ballet_mdp.VELOCITY_EPSILON,
         },
     )
     body_ang_vel: RewTerm | None = RewTerm(
@@ -182,7 +183,7 @@ class BalletRewardsCfg:
             "sensor_name": "feet_ground_contact",
             "left_leg_cfg": SceneEntityCfg("robot", joint_names=(r"left_(hip|knee|ankle)_.*",)),
             "right_leg_cfg": SceneEntityCfg("robot", joint_names=(r"right_(hip|knee|ankle)_.*",)),
-            "velocity_epsilon": 0.01,
+            "velocity_epsilon": ballet_mdp.VELOCITY_EPSILON,
         },
     )
     fell_over_penalty: RewTerm | None = RewTerm(

@@ -199,7 +199,7 @@ def push_velocity_range_curriculum(
     event_name: str,
     start_steps: int,
     stage_interval_steps: int,
-    stage_half_ranges: tuple[float, ...] = (0.3, 0.4, 0.5),
+    stage_half_ranges: tuple[float, ...] = (0.15, 0.20, 0.25),
 ) -> dict[str, torch.Tensor]:
     """Increase X/Y push velocity range in discrete threshold stages."""
     del env_ids
@@ -209,7 +209,7 @@ def push_velocity_range_curriculum(
         stage_interval_steps=stage_interval_steps,
         stage_values=stage_half_ranges,
     )
-    # Pushes are already configured at ±0.3 from the beginning. Before the
+    # Pushes are already configured at ±0.15 from the beginning. Before the
     # curriculum start keep that initial range instead of disabling pushes.
     if stage < 0:
         half_range = float(stage_half_ranges[0])

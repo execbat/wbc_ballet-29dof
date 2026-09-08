@@ -136,7 +136,7 @@ uv run train Mjlab-Ballet-Flat-Unitree-G1-29DoF \
 # Launch Play 
 ```text
 uv run play Mjlab-Ballet-Flat-Unitree-G1-29DoF \
-  --checkpoint-file ./logs/rsl_rl/g1_29dof_ballet/2026-09-06_19-37-27_ballet/model_21500.pt \
+  --checkpoint-file ./logs/rsl_rl/g1_29dof_ballet/2026-09-08_15-53-10_ballet/model_1500.pt \
   --viewer native \
   --num-envs 1
 ```

@@ -93,8 +93,8 @@ class BalletCommandCfg(CommandTermCfg):
     target_limit: float = 0.8
     mask_probability: float = 0.15
     velocity_ranges: tuple[tuple[float, float, float], tuple[float, float, float]] = (
-        (0.0, 0.0, -1.0),
-        (1.0, 0.0, 1.0),
+        (-1.0, -1.0, -1.0),
+        (1.0, 1.0, 1.0),
     )
 
     def build(self, env: ManagerBasedRlEnv) -> BalletCommand:

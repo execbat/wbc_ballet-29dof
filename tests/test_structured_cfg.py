@@ -51,6 +51,15 @@ def test_manager_terms_are_converted_from_configclasses() -> None:
     assert "com_support_projection" in native.rewards
     assert "commanded_leg_ground_contact" in native.rewards
     assert native.rewards["commanded_leg_ground_contact"].weight == -1.0
+    assert native.rewards["track_angular_velocity"].weight == 3.0
+    assert (
+        native.rewards["commanded_leg_ground_contact"].params["velocity_epsilon"]
+        == ballet_mdp.VELOCITY_EPSILON
+    )
+    assert (
+        native.rewards["com_support_projection"].params["velocity_epsilon"]
+        == ballet_mdp.VELOCITY_EPSILON
+    )
     assert "non_finite_state_penalty" in native.rewards
     assert "mask_probability" in native.curriculum
     assert "target_scale" in native.curriculum
@@ -122,6 +131,7 @@ def test_training_command_starts_with_zero_masks_and_safe_targets() -> None:
     assert command.mask_probability == 0.0
     assert command.target_scale == 0.0
     assert command.target_limit == 0.8
+    assert command.velocity_ranges == ((-1.0, -1.0, -1.0), (1.0, 1.0, 1.0))
 
 
 def test_training_episode_period_is_24_seconds() -> None:

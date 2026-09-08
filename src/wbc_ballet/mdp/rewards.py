@@ -15,6 +15,7 @@ from .observations import (
 )
 
 _ROBOT_CFG = SceneEntityCfg("robot")
+VELOCITY_EPSILON = 0.01
 
 
 def _selected_command_axes(values: torch.Tensor, asset_cfg: SceneEntityCfg) -> torch.Tensor:
@@ -100,15 +101,20 @@ def commanded_leg_ground_contact(
     *,
     left_leg_cfg: SceneEntityCfg,
     right_leg_cfg: SceneEntityCfg,
-    velocity_epsilon: float = 1.0e-4,
+    velocity_epsilon: float = VELOCITY_EPSILON,
 ) -> torch.Tensor:
-    """Penalize invalid support/non-support foot contacts.
+    """Penalize invalid foot contacts using velocity- and mask-aware rules.
 
-    Support legs must stay on the ground while stationary.
-    Non-support legs must stay off the ground regardless of velocity.
-    If both legs are masked, the leg masked first is non-support.
+    For command speed below ``velocity_epsilon``:
+    * no leg masks: both feet must contact the ground;
+    * exactly one leg masked: the masked foot must be off the ground and the
+      unmasked foot must contact the ground;
+    * both legs masked: no contact rule is enforced.
+
+    For command speed at or above ``velocity_epsilon``:
+    * exactly one leg masked: the masked foot must be off the ground;
+    * no leg masks or both legs masked: no contact rule is enforced.
     """
-
     sensor = env.scene[sensor_name]
     if not isinstance(sensor, ContactSensor):
         raise TypeError(f"{sensor_name!r} must be a ContactSensor, got {type(sensor).__name__}")
@@ -126,74 +132,26 @@ def commanded_leg_ground_contact(
         ) from exc
 
     contacts = sensor.data.found[:, foot_ids] > 0
+    left_contact, right_contact = contacts[:, 0], contacts[:, 1]
     left_active = _group_has_active_mask(env, left_leg_cfg)
     right_active = _group_has_active_mask(env, right_leg_cfg)
-    num_envs = left_active.shape[0]
 
-    # Track when each leg mask becomes active.
-    state_name = "_commanded_leg_ground_contact_state"
-    state = getattr(env, state_name, None)
+    no_masks = ~left_active & ~right_active
+    left_only = left_active & ~right_active
+    right_only = right_active & ~left_active
 
-    if state is None or state["left_prev"].shape[0] != num_envs:
-        inf = torch.full((num_envs,), float("inf"), device=left_active.device)
-        state = {
-            "left_prev": torch.zeros_like(left_active),
-            "right_prev": torch.zeros_like(right_active),
-            "left_on_step": inf.clone(),
-            "right_on_step": inf.clone(),
-        }
-        setattr(env, state_name, state)
+    command_speed = env.command_manager.get_command("ballet")[:, :3].abs().amax(dim=1)
+    stationary = command_speed < velocity_epsilon
+    moving = ~stationary
 
-    step = float(getattr(env, "common_step_counter", 0))
-    left_rising = left_active & ~state["left_prev"]
-    right_rising = right_active & ~state["right_prev"]
+    penalty = torch.zeros_like(command_speed)
+    penalty += (stationary & no_masks).float() * ((~left_contact).float() + (~right_contact).float())
+    penalty += (stationary & left_only).float() * (left_contact.float() + (~right_contact).float())
+    penalty += (stationary & right_only).float() * (right_contact.float() + (~left_contact).float())
+    penalty += (moving & left_only & left_contact).float()
+    penalty += (moving & right_only & right_contact).float()
+    return penalty
 
-    state["left_on_step"] = torch.where(
-        left_rising, torch.full_like(state["left_on_step"], step), state["left_on_step"]
-    )
-    state["right_on_step"] = torch.where(
-        right_rising, torch.full_like(state["right_on_step"], step), state["right_on_step"]
-    )
-
-    inf_left = torch.full_like(state["left_on_step"], float("inf"))
-    inf_right = torch.full_like(state["right_on_step"], float("inf"))
-    state["left_on_step"] = torch.where(left_active, state["left_on_step"], inf_left)
-    state["right_on_step"] = torch.where(right_active, state["right_on_step"], inf_right)
-    state["left_prev"] = left_active.clone()
-    state["right_prev"] = right_active.clone()
-
-    # Determine support legs.
-    neither = ~left_active & ~right_active
-    support_left = neither | (~left_active & right_active)
-    support_right = neither | (left_active & ~right_active)
-
-    # With both masks active, the earlier-masked leg is non-support.
-    both = left_active & right_active
-    left_earlier = both & (state["left_on_step"] < state["right_on_step"])
-    right_earlier = both & (state["right_on_step"] < state["left_on_step"])
-    simultaneous = both & ~(left_earlier | right_earlier)
-
-    support_left |= right_earlier | simultaneous
-    support_right |= left_earlier | simultaneous
-
-    # Support contact is required only while stationary.
-    command = env.command_manager.get_command("ballet")[:, :3]
-    stationary = command.abs().amax(dim=1) <= velocity_epsilon
-
-    left_contact, right_contact = contacts[:, 0], contacts[:, 1]
-
-    # Support foot in air -> penalty only while stationary.
-    left_missing = stationary & support_left & ~left_contact
-    right_missing = stationary & support_right & ~right_contact
-
-    # Non-support foot on ground -> penalty regardless of velocity.
-    left_unexpected = ~support_left & left_contact
-    right_unexpected = ~support_right & right_contact
-
-    left_violation = left_missing | left_unexpected
-    right_violation = right_missing | right_unexpected
-
-    return (left_violation.float() + right_violation.float())
 
 def com_support_projection_tracking(
     env: ManagerBasedRlEnv,
@@ -203,8 +161,21 @@ def com_support_projection_tracking(
     feet_cfg: SceneEntityCfg,
     left_leg_cfg: SceneEntityCfg,
     right_leg_cfg: SceneEntityCfg,
+    velocity_epsilon: float = VELOCITY_EPSILON,
 ) -> torch.Tensor:
-    """Track the mask-aware support center with the whole-body CoM projection."""
+    """Track CoM support projection only when locomotion/support control needs it.
+
+    The reward is active when command speed is at or above ``velocity_epsilon``.
+    Below the threshold it is active only when exactly one leg has an active
+    mask. Otherwise it returns zero.
+    """
+    command_speed = env.command_manager.get_command("ballet")[:, :3].abs().amax(dim=1)
+    stationary = command_speed < velocity_epsilon
+    left_active = _group_has_active_mask(env, left_leg_cfg)
+    right_active = _group_has_active_mask(env, right_leg_cfg)
+    exactly_one_leg_masked = left_active ^ right_active
+    active = ~stationary | (stationary & exactly_one_leg_masked)
+
     com_xy = whole_body_com_xy_b(env, asset_cfg)
     support_xy = support_center_xy_b(
         env,
@@ -214,8 +185,8 @@ def com_support_projection_tracking(
         right_leg_cfg=right_leg_cfg,
     )
     squared_distance = (com_xy - support_xy).square().sum(dim=1)
-    return torch.exp(-squared_distance / (std * std))
-
+    score = torch.exp(-squared_distance / (std * std))
+    return torch.where(active, score, torch.zeros_like(score))
 
 def pelvis_height_tracking(
     env: ManagerBasedRlEnv,

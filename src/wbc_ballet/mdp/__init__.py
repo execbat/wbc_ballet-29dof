@@ -27,6 +27,7 @@ from .observations import (
     whole_body_com_xy_b,
 )
 from .rewards import (
+    VELOCITY_EPSILON,
     com_support_projection_tracking,
     commanded_leg_ground_contact,
     fell_over_penalty,
@@ -44,6 +45,7 @@ from .terminations import non_finite_state_or_action, pelvis_height_below
 __all__ = [
     "BalletCommandCfg",
     "UdpBalletCommandCfg",
+    "VELOCITY_EPSILON",
     "ballet_mask",
     "ballet_targets",
     "ballet_velocity",

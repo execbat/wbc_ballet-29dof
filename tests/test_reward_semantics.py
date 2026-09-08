@@ -159,11 +159,25 @@ def test_support_center_uses_masked_leg_group_semantics() -> None:
         left_leg_cfg=left_cfg,
         right_leg_cfg=right_cfg,
     )
-    torch.testing.assert_close(reward[[0, 3]], torch.ones(2))
+    # At zero command speed, CoM support tracking is disabled with no leg
+    # masks or masks on both legs, and active only with exactly one masked leg.
+    torch.testing.assert_close(reward[[0, 3]], torch.zeros(2))
     assert torch.all(reward[[1, 2]] < 1.0)
 
+    # At or above the velocity threshold it is active regardless of leg masks.
+    env.command_manager.command[0, 0] = 0.1
+    moving_reward = com_support_projection_tracking(
+        env,
+        std=0.1,
+        asset_cfg=robot_cfg,
+        feet_cfg=feet_cfg,
+        left_leg_cfg=left_cfg,
+        right_leg_cfg=right_cfg,
+    )
+    torch.testing.assert_close(moving_reward[0], torch.tensor(1.0))
 
-def test_commanded_leg_contact_penalty_requires_stationary_support_contacts(monkeypatch) -> None:
+
+def test_commanded_leg_contact_penalty_uses_simplified_velocity_mask_rules(monkeypatch) -> None:
     class _FakeContactSensor:
         def __init__(self, found: torch.Tensor) -> None:
             self.data = SimpleNamespace(found=found)
@@ -172,26 +186,30 @@ def test_commanded_leg_contact_penalty_requires_stationary_support_contacts(monk
 
     monkeypatch.setattr(rewards_module, "ContactSensor", _FakeContactSensor)
 
-    mask = torch.zeros(6, 29)
-    mask[2, 0] = 1.0  # left commanded -> right support
-    mask[3, 0] = 1.0
-    mask[4, 6] = 1.0  # right commanded -> left support
+    mask = torch.zeros(8, 29)
+    mask[2, 0] = 1.0  # stationary, left masked
+    mask[3, 0] = 1.0  # stationary, left masked
+    mask[4, 6] = 1.0  # stationary, right masked
+    mask[5, (0, 6)] = 1.0  # stationary, both masked -> ignored
+    mask[6, 0] = 1.0  # moving, left masked
     env, _ = _fake_env(mask=mask)
+
     # Sensor columns are [right, left].
     env.scene["feet_ground_contact"] = _FakeContactSensor(
         torch.tensor(
             [
-                [1, 1],  # no masks, both feet down -> OK
-                [1, 0],  # no masks, left missing -> penalty 1
-                [1, 0],  # left commanded, right support down -> OK
-                [0, 1],  # left commanded, right support missing -> penalty 1
-                [1, 0],  # right commanded, left support missing -> penalty 1
-                [0, 0],  # moving -> penalty suppressed
+                [1, 1],  # stationary, no masks, both down -> OK
+                [1, 0],  # stationary, no masks, left missing -> 1
+                [1, 0],  # stationary, left masked: left off/right on -> OK
+                [0, 1],  # stationary, left masked: left on/right off -> 2
+                [0, 1],  # stationary, right masked: right off/left on -> OK
+                [0, 0],  # stationary, both masked -> ignored
+                [0, 1],  # moving, left masked and touching -> 1; right ignored
+                [0, 0],  # moving, no masks -> ignored
             ]
         )
     )
-    # Make the last environment non-stationary.
-    env.command_manager.command[5, 0] = 0.2
+    env.command_manager.command[6:, 0] = 0.2
 
     left_cfg = SimpleNamespace(joint_ids=list(range(6)))
     right_cfg = SimpleNamespace(joint_ids=list(range(6, 12)))
@@ -201,66 +219,33 @@ def test_commanded_leg_contact_penalty_requires_stationary_support_contacts(monk
         left_leg_cfg=left_cfg,
         right_leg_cfg=right_cfg,
     )
-    torch.testing.assert_close(penalty, torch.tensor([0.0, 1.0, 0.0, 1.0, 1.0, 0.0]))
+    torch.testing.assert_close(
+        penalty, torch.tensor([0.0, 1.0, 0.0, 2.0, 0.0, 0.0, 1.0, 0.0])
+    )
 
 
-def test_commanded_leg_contact_penalty_tracks_mask_activation_order(monkeypatch) -> None:
+def test_commanded_leg_contact_penalty_ignores_both_masked(monkeypatch) -> None:
     class _FakeContactSensor:
-        def __init__(self) -> None:
-            self.data = SimpleNamespace(found=torch.tensor([[1, 1]]))
+        def __init__(self, found: torch.Tensor) -> None:
+            self.data = SimpleNamespace(found=found)
             self.primary_names = ["left_ankle_roll_link", "right_ankle_roll_link"]
 
     monkeypatch.setattr(rewards_module, "ContactSensor", _FakeContactSensor)
-    env, _ = _fake_env(mask=torch.zeros(1, 29))
-    env.scene["feet_ground_contact"] = _FakeContactSensor()
-    left_cfg = SimpleNamespace(joint_ids=list(range(6)))
-    right_cfg = SimpleNamespace(joint_ids=list(range(6, 12)))
-
-    # Left mask rises first.
-    env.common_step_counter = 100
-    env.command_manager.command[:, 3 + 29 + 0] = 1.0
-    commanded_leg_ground_contact(
-        env,
-        "feet_ground_contact",
-        left_leg_cfg=left_cfg,
-        right_leg_cfg=right_cfg,
-    )
-
-    # Right rises later, therefore right is the support leg. Missing right
-    # contact must be penalized even though both legs are masked.
-    env.common_step_counter = 101
-    env.command_manager.command[:, 3 + 29 + 6] = 1.0
-    env.scene["feet_ground_contact"].data.found[:] = torch.tensor([[1, 0]])
-    penalty = commanded_leg_ground_contact(
-        env,
-        "feet_ground_contact",
-        left_leg_cfg=left_cfg,
-        right_leg_cfg=right_cfg,
-    )
-    torch.testing.assert_close(penalty, torch.tensor([1.0]))
-
-
-def test_commanded_leg_contact_penalty_requires_both_if_masks_rise_together(monkeypatch) -> None:
-    class _FakeContactSensor:
-        def __init__(self) -> None:
-            self.data = SimpleNamespace(found=torch.tensor([[0, 0]]))
-            self.primary_names = ["left_ankle_roll_link", "right_ankle_roll_link"]
-
-    monkeypatch.setattr(rewards_module, "ContactSensor", _FakeContactSensor)
-    mask = torch.zeros(1, 29)
-    mask[0, (0, 6)] = 1.0
+    mask = torch.zeros(2, 29)
+    mask[:, (0, 6)] = 1.0
     env, _ = _fake_env(mask=mask)
-    env.scene["feet_ground_contact"] = _FakeContactSensor()
+    env.command_manager.command[1, 0] = 0.2
+    env.scene["feet_ground_contact"] = _FakeContactSensor(torch.tensor([[0, 0], [1, 1]]))
+
     left_cfg = SimpleNamespace(joint_ids=list(range(6)))
     right_cfg = SimpleNamespace(joint_ids=list(range(6, 12)))
-
     penalty = commanded_leg_ground_contact(
         env,
         "feet_ground_contact",
         left_leg_cfg=left_cfg,
         right_leg_cfg=right_cfg,
     )
-    torch.testing.assert_close(penalty, torch.tensor([2.0]))
+    torch.testing.assert_close(penalty, torch.zeros(2))
 
 def test_nonfinite_diagnostics_identify_type_component_and_action() -> None:
     data = SimpleNamespace(

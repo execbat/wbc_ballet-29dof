@@ -256,7 +256,7 @@ G1_ARTICULATION = EntityArticulationInfoCfg(
     G1_ACTUATOR_WAIST,
     G1_ACTUATOR_ANKLE,
   ),
-  soft_joint_pos_limit_factor=0.9,
+  soft_joint_pos_limit_factor=0.95,
 )
 
 G1_ACTION_SCALE: dict[str, float] = {}

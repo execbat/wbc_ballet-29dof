@@ -18,6 +18,7 @@ from wbc_ballet.mdp.rewards import (
     com_support_projection_tracking,
     commanded_leg_ground_contact,
     masked_pose_tracking,
+    pelvis_height_penalty,
     unmasked_home_tracking,
 )
 from wbc_ballet.mdp.terminations import non_finite_state_or_action, pelvis_height_below
@@ -108,6 +109,18 @@ def test_pelvis_height_is_relative_to_environment_origin() -> None:
     env.scene.env_origins[:, 2] = torch.tensor([0.0, 1.0])
     terminated = pelvis_height_below(env, minimum_height=0.2, asset_cfg=asset_cfg)
     torch.testing.assert_close(terminated, torch.tensor([True, False]))
+
+
+def test_pelvis_height_penalty_is_normalized_squared_error_and_ignores_masks() -> None:
+    mask = torch.zeros(3, 29)
+    mask[2, 0] = 1.0
+    env, asset_cfg = _fake_env(mask=mask)
+    env.scene["robot"].data.root_link_pos_w[:, 2] = torch.tensor([0.8, 0.62, 0.62])
+
+    penalty = pelvis_height_penalty(
+        env, target_height=0.8, std=0.18, asset_cfg=asset_cfg
+    )
+    torch.testing.assert_close(penalty, torch.tensor([0.0, 1.0, 1.0]))
 
 
 def test_support_center_uses_masked_leg_group_semantics() -> None:

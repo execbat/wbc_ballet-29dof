@@ -45,7 +45,7 @@ def test_manager_terms_are_converted_from_configclasses() -> None:
     assert list(native.actions) == ["joint_pos"]
     assert list(native.commands) == ["ballet"]
     assert "masked_pose_tracking" in native.rewards
-    assert "pelvis_height_tracking" in native.rewards
+    assert "pelvis_height_penalty" in native.rewards
     assert "leg_lateral_alignment" in native.rewards
     assert "foot_heading_alignment" in native.rewards
     assert "com_support_projection" in native.rewards

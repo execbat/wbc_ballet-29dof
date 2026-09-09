@@ -15,7 +15,7 @@ from .observations import (
 )
 
 _ROBOT_CFG = SceneEntityCfg("robot")
-VELOCITY_EPSILON = 0.01
+VELOCITY_EPSILON = 0.05
 
 
 def _selected_command_axes(values: torch.Tensor, asset_cfg: SceneEntityCfg) -> torch.Tensor:
@@ -188,24 +188,23 @@ def com_support_projection_tracking(
     score = torch.exp(-squared_distance / (std * std))
     return torch.where(active, score, torch.zeros_like(score))
 
-def pelvis_height_tracking(
+def pelvis_height_penalty(
     env: ManagerBasedRlEnv,
     target_height: float = 0.8,
     std: float = 0.18,
     asset_cfg: SceneEntityCfg = _ROBOT_CFG,
-    *,
-    left_leg_cfg: SceneEntityCfg,
-    right_leg_cfg: SceneEntityCfg,
 ) -> torch.Tensor:
-    """Keep standing pelvis height when no leg has an explicit ballet target."""
+    """Penalize pelvis-height error at all times.
+
+    The returned value is a positive normalized squared error. Configure this
+    term with a negative reward weight; increasing the weight magnitude makes
+    the height constraint progressively stiffer. Ballet masks do not disable
+    this constraint.
+    """
     robot = env.scene[asset_cfg.name]
     height = robot.data.root_link_pos_w[:, 2] - env.scene.env_origins[:, 2]
-    error = height - target_height
-    score = torch.exp(-error.square() / (std * std))
-    any_leg_commanded = _group_has_active_mask(env, left_leg_cfg) | _group_has_active_mask(
-        env, right_leg_cfg
-    )
-    return torch.where(any_leg_commanded, torch.zeros_like(score), score)
+    error = (height - target_height) / std
+    return error.square()
 
 
 def unmasked_leg_lateral_alignment(

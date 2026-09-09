@@ -50,15 +50,10 @@ class BalletRewardsCfg:
     )
     # Human-like locomotion priors. A mask anywhere on one leg disables the
     # leg-specific prior for that leg, while the other leg remains regularized.
-    pelvis_height_tracking: RewTerm | None = RewTerm(
-        func=ballet_mdp.pelvis_height_tracking,
-        weight=1.0,
-        params={
-            "target_height": 0.8,
-            "std": 0.18,
-            "left_leg_cfg": SceneEntityCfg("robot", joint_names=(r"left_(hip|knee|ankle)_.*",)),
-            "right_leg_cfg": SceneEntityCfg("robot", joint_names=(r"right_(hip|knee|ankle)_.*",)),
-        },
+    pelvis_height_penalty: RewTerm | None = RewTerm(
+        func=ballet_mdp.pelvis_height_penalty,
+        weight=-1.0,
+        params={"target_height": 0.8, "std": 0.18},
     )
     leg_lateral_alignment: RewTerm | None = RewTerm(
         func=ballet_mdp.unmasked_leg_lateral_alignment,
@@ -137,7 +132,7 @@ class BalletRewardsCfg:
             "target_height": 0.1,
             "height_sensor_name": "foot_height_scan",
             "command_name": "ballet",
-            "command_threshold": 0.05,
+            "command_threshold": ballet_mdp.VELOCITY_EPSILON,
             "asset_cfg": SceneEntityCfg("robot", site_names=("left_foot", "right_foot")),
         },
     )
@@ -149,7 +144,7 @@ class BalletRewardsCfg:
             "height_sensor_name": "foot_height_scan",
             "target_height": 0.1,
             "command_name": "ballet",
-            "command_threshold": 0.05,
+            "command_threshold": ballet_mdp.VELOCITY_EPSILON,
         },
     )
     foot_slip: RewTerm | None = RewTerm(
@@ -158,7 +153,7 @@ class BalletRewardsCfg:
         params={
             "sensor_name": "feet_ground_contact",
             "command_name": "ballet",
-            "command_threshold": 0.05,
+            "command_threshold": ballet_mdp.VELOCITY_EPSILON,
             "asset_cfg": SceneEntityCfg("robot", site_names=("left_foot", "right_foot")),
         },
     )
@@ -168,7 +163,7 @@ class BalletRewardsCfg:
         params={
             "sensor_name": "feet_ground_contact",
             "command_name": "ballet",
-            "command_threshold": 0.05,
+            "command_threshold": ballet_mdp.VELOCITY_EPSILON,
         },
     )
     self_collisions: RewTerm | None = RewTerm(

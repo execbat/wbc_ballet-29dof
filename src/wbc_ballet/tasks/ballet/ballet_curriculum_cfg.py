@@ -19,7 +19,8 @@ FINAL_TARGET_SCALE = 0.9
 # Balance curricula start only after locomotion-only + mask-ramp training.
 BALANCE_CURRICULUM_START_ITERATION = WALK_ONLY_ITERATIONS 
 BALANCE_CURRICULUM_STAGE_INTERVAL_ITERATIONS = 1_000
-BALANCE_REWARD_STAGE_WEIGHTS = (1.0 / 3.0, 2.0 / 3.0, 1.0)
+COM_SUPPORT_PROJECTION_STAGE_WEIGHTS = (1.0 / 3.0, 2.0 / 3.0, 1.0)
+PELVIS_HEIGHT_PENALTY_STAGE_WEIGHTS = (-0.5, -1.0, -2.0)
 PUSH_STAGE_HALF_RANGES = (0.15, 0.20, 0.25)
 
 COMMANDED_LEG_CONTACT_STAGE_INTERVAL_ITERATIONS = 3_000
@@ -50,14 +51,14 @@ class BalletCurriculumCfg:
             "final_scale": FINAL_TARGET_SCALE,
         },
     )
-    pelvis_height_tracking_weight: CurrTerm | None = CurrTerm(
+    pelvis_height_penalty_weight: CurrTerm | None = CurrTerm(
         func=ballet_mdp.reward_weight_curriculum,
         params={
-            "reward_name": "pelvis_height_tracking",
+            "reward_name": "pelvis_height_penalty",
             "start_steps": BALANCE_CURRICULUM_START_ITERATION * PPO_STEPS_PER_ITERATION,
             "stage_interval_steps": BALANCE_CURRICULUM_STAGE_INTERVAL_ITERATIONS
             * PPO_STEPS_PER_ITERATION,
-            "stage_weights": BALANCE_REWARD_STAGE_WEIGHTS,
+            "stage_weights": PELVIS_HEIGHT_PENALTY_STAGE_WEIGHTS,
         },
     )
     com_support_projection_weight: CurrTerm | None = CurrTerm(
@@ -67,7 +68,7 @@ class BalletCurriculumCfg:
             "start_steps": BALANCE_CURRICULUM_START_ITERATION * PPO_STEPS_PER_ITERATION,
             "stage_interval_steps": BALANCE_CURRICULUM_STAGE_INTERVAL_ITERATIONS
             * PPO_STEPS_PER_ITERATION,
-            "stage_weights": BALANCE_REWARD_STAGE_WEIGHTS,
+            "stage_weights": COM_SUPPORT_PROJECTION_STAGE_WEIGHTS,
         },
     )
     push_velocity_range: CurrTerm | None = CurrTerm(
@@ -104,6 +105,6 @@ class BalletPlayCurriculumCfg(BalletCurriculumCfg):
     terrain_levels: CurrTerm | None = None
     mask_probability: CurrTerm | None = None
     target_scale: CurrTerm | None = None
-    pelvis_height_tracking_weight: CurrTerm | None = None
+    pelvis_height_penalty_weight: CurrTerm | None = None
     com_support_projection_weight: CurrTerm | None = None
     push_velocity_range: CurrTerm | None = None

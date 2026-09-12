@@ -42,8 +42,8 @@ def track_ballet_angular_velocity(
 ) -> torch.Tensor:
     robot = env.scene[asset_cfg.name]
     command = env.command_manager.get_command("ballet")[:, :3]
-    actual = robot.data.root_link_ang_vel_b
-    error = (command[:, 2] - actual[:, 2]).square() + actual[:, :2].square().sum(dim=1)
+    actual = robot.data.root_link_ang_vel_w
+    error = (command[:, 2] - actual[:, 2]).square()
     return torch.exp(-error / (std * std))
 
 
@@ -203,6 +203,7 @@ def pelvis_height_penalty(
     """
     robot = env.scene[asset_cfg.name]
     height = robot.data.root_link_pos_w[:, 2] - env.scene.env_origins[:, 2]
+    #print(height)
     error = (height - target_height) / std
     return error.square()
 
@@ -240,7 +241,8 @@ def unmasked_leg_lateral_alignment(
         side_score(left_alignment_cfg) * left_eligible.float()
         + side_score(right_alignment_cfg) * right_eligible.float()
     ) / eligible_count.clamp_min(1.0)
-    return torch.where(eligible_count > 0.0, score, torch.zeros_like(score))
+    turning = env.command_manager.get_command("ballet")[:, 2].abs() > 0.15
+    return torch.where((eligible_count > 0.0) & ~turning, score, torch.zeros_like(score))
 
 
 def unmasked_foot_heading_alignment(
@@ -288,3 +290,4 @@ def unmasked_foot_heading_alignment(
     eligible_count = eligible.sum(dim=1)
     score = (side_scores * eligible.float()).sum(dim=1) / eligible_count.clamp_min(1)
     return torch.where(eligible_count > 0, score, torch.zeros_like(score))
+

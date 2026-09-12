@@ -9,6 +9,7 @@ description = "Unitree G1-29DoF ballet training on MJLab (MuJoCo + Warp) and rsl
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+  "gitpython>=3.1.61",
   # Keep the simulator stack reproducible.  In particular, do not let a plain
   # `uv run` upgrade Torch to a CUDA 13 build on CUDA 12.8 driver machines.
   "mjlab==1.5.3",

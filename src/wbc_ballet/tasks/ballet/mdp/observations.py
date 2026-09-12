@@ -6,7 +6,7 @@ from mjlab.managers.scene_entity_config import SceneEntityCfg
 
 _ROBOT_CFG = SceneEntityCfg("robot")
 
-# Must match the layout in ``wbc_ballet.mdp.commands``:
+# Must match the layout in ``wbc_ballet.tasks.ballet.mdp.commands``:
 # [velocity(3), targets(29), mask(29)] = 61D. 29 = the G1-29DoF joint count.
 _NUM_JOINTS = 29
 _TARGET_START = 3

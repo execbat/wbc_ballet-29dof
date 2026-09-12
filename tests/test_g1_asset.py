@@ -15,7 +15,7 @@ from wbc_ballet.robots.g1.constants import get_spec
 # and mjlab.entity.Entity.find_joints_by_actuator_names). This is the SAME
 # order used for observations (joint_pos, joint_vel, axis_actual_normalized),
 # actions, and the ballet command's targets/mask -- see
-# wbc_ballet.teleop.protocol / wbc_ballet.mdp.commands / .observations.
+# wbc_ballet.teleop.protocol / wbc_ballet.tasks.ballet.mdp.commands / .observations.
 CANONICAL_JOINT_ORDER_29 = (
     "left_hip_pitch_joint",
     "left_hip_roll_joint",
@@ -70,7 +70,7 @@ def test_model_joint_order_matches_canonical_order() -> None:
     """Locks the exact axis order every other module assumes.
 
     If this ever fails after an MJCF edit, every hardcoded axis-order
-    assumption in mdp/commands.py, mdp/observations.py,
+    assumption in tasks/ballet/mdp/commands.py, tasks/ballet/mdp/observations.py,
     teleop/protocol.py, and gamepad/game_emulator_run_v1.py needs revisiting.
     """
     model = get_spec().compile()

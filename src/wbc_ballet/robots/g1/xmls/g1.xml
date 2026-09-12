@@ -194,14 +194,18 @@
                         <inertial pos="0.0229999 -0.00111685 -0.00111658" quat="0.249998 0.661363 0.293036 0.643608" mass="0.48405" diaginertia="0.000430353 0.000429873 0.000164648"/>
                         <joint name="left_wrist_pitch_joint" axis="0 1 0" range="-1.61443 1.61443"/>
                         <geom class="visual" mesh="left_wrist_pitch_link"/>
-                        <geom name="left_wrist_collision" class="collision" size="0.035" fromto="-0.01 0 0 0.06 0 0"/>
+                        <geom name="left_wrist_collision" class="collision" size="0.025" fromto="-0.01 0 0 0.05 0 0"/>
                         <body name="left_wrist_yaw_link" pos="0.046 0 0">
                           <inertial pos="0.0708244 0.000191745 0.00161742" quat="0.510571 0.526295 0.468078 0.493188" mass="0.254576" diaginertia="0.000646113 0.000559993 0.000147566"/>
                           <joint name="left_wrist_yaw_joint" axis="0 0 1" range="-1.61443 1.61443"/>
                           <geom class="visual" mesh="left_wrist_yaw_link"/>
                           <geom pos="0.0415 0.003 0" quat="1 0 0 0" class="visual" mesh="left_rubber_hand" material="black"/>
                           <site name="left_palm" pos="0.08 0 0" size="0.01"/>
-                          <geom name="left_hand_collision" class="collision" size="0.035" rgba=".2 .6 .2 .2" fromto="0.07 0 0 0.15 -0.02 0"/>
+                          <!-- Flat support pad, not the rubber-hand capsule: a capsule
+                               only ever contacts along a line/point, so it can't give a
+                               well-defined, low-penetration handstand support polygon.
+                               Half-extents (0.075 0.04 0.0125) -> 0.15x0.08x0.025m box. -->
+                          <geom name="left_hand_collision" class="collision" type="box" size="0.075 0.04 0.0125" pos="0.10 -0.01 -0.01" rgba=".2 .6 .2 .2"/>
                         </body>
                       </body>
                     </body>
@@ -235,14 +239,14 @@
                         <inertial pos="0.0229999 0.00111685 -0.00111658" quat="0.643608 0.293036 0.661363 0.249998" mass="0.48405" diaginertia="0.000430353 0.000429873 0.000164648"/>
                         <joint name="right_wrist_pitch_joint" axis="0 1 0" range="-1.61443 1.61443"/>
                         <geom class="visual" mesh="right_wrist_pitch_link"/>
-                        <geom name="right_wrist_collision" class="collision" size="0.035" fromto="-0.01 0 0 0.06 0 0"/>
+                        <geom name="right_wrist_collision" class="collision" size="0.025" fromto="-0.01 0 0 0.05 0 0"/>
                         <body name="right_wrist_yaw_link" pos="0.046 0 0">
                           <inertial pos="0.0708244 -0.000191745 0.00161742" quat="0.493188 0.468078 0.526295 0.510571" mass="0.254576" diaginertia="0.000646113 0.000559993 0.000147566"/>
                           <joint name="right_wrist_yaw_joint" axis="0 0 1" range="-1.61443 1.61443"/>
                           <geom class="visual" mesh="right_wrist_yaw_link"/>
                           <geom pos="0.0415 -0.003 0" quat="1 0 0 0" class="visual" mesh="right_rubber_hand" material="black"/>
                           <site name="right_palm" pos="0.08 0 0" size="0.01"/>
-                          <geom name="right_hand_collision" class="collision" size="0.035" rgba=".2 .6 .2 .2" fromto="0.07 0 0 0.15 0.02 0"/>
+                          <geom name="right_hand_collision" class="collision" type="box" size="0.075 0.04 0.0125" pos="0.10 0.01 -0.01" rgba=".2 .6 .2 .2"/>
                         </body>
                       </body>
                     </body>

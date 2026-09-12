@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from wbc_ballet.mdp.torque_envelope import (
+from .torque_envelope import (
   TorqueSpeedEnvelope,
   TorqueSpeedEnvelopeTensors,
   build_envelope_tensors,

@@ -6,7 +6,7 @@ from mjlab.managers.reward_manager import RewardTermCfg as RewTerm
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.tasks.velocity import mdp
 
-from wbc_ballet import mdp as ballet_mdp
+from wbc_ballet.tasks.ballet import mdp as ballet_mdp
 from wbc_ballet.utils.configclass import configclass
 
 
@@ -53,7 +53,7 @@ class BalletRewardsCfg:
     pelvis_height_penalty: RewTerm | None = RewTerm(
         func=ballet_mdp.pelvis_height_penalty,
         weight=-1.0,
-        params={"target_height": 0.8, "std": 0.18},
+        params={"target_height": 0.77, "std": 0.18},
     )
     leg_lateral_alignment: RewTerm | None = RewTerm(
         func=ballet_mdp.unmasked_leg_lateral_alignment,
@@ -114,7 +114,7 @@ class BalletRewardsCfg:
     )
     body_ang_vel: RewTerm | None = RewTerm(
         func=mdp.body_angular_velocity_penalty,
-        weight=-0.05,
+        weight=-0.05, 
         params={"asset_cfg": SceneEntityCfg("robot", body_names=("torso_link",))},
     )
     # Whole-body angular momentum conflicts with deliberate arm/waist ballet
@@ -125,28 +125,28 @@ class BalletRewardsCfg:
     # several negative reward units during transitions and suppress movement.
     action_rate_l2: RewTerm | None = RewTerm(func=mdp.action_rate_l2, weight=-0.02)
     air_time: RewTerm | None = None
-    foot_clearance: RewTerm | None = RewTerm(
-        func=mdp.feet_clearance,
-        weight=-1.0,
-        params={
-            "target_height": 0.1,
-            "height_sensor_name": "foot_height_scan",
-            "command_name": "ballet",
-            "command_threshold": ballet_mdp.VELOCITY_EPSILON,
-            "asset_cfg": SceneEntityCfg("robot", site_names=("left_foot", "right_foot")),
-        },
-    )
-    foot_swing_height: RewTerm | None = RewTerm(
-        func=mdp.feet_swing_height,
-        weight=-0.1,
-        params={
-            "sensor_name": "feet_ground_contact",
-            "height_sensor_name": "foot_height_scan",
-            "target_height": 0.1,
-            "command_name": "ballet",
-            "command_threshold": ballet_mdp.VELOCITY_EPSILON,
-        },
-    )
+#    foot_clearance: RewTerm | None = RewTerm(
+#        func=mdp.feet_clearance,
+#        weight=-1.0,
+#        params={
+#            "target_height": 0.1,
+#            "height_sensor_name": "foot_height_scan",
+#            "command_name": "ballet",
+#            "command_threshold": ballet_mdp.VELOCITY_EPSILON,
+#            "asset_cfg": SceneEntityCfg("robot", site_names=("left_foot", "right_foot")),
+#        },
+#    )
+#    foot_swing_height: RewTerm | None = RewTerm(
+#        func=mdp.feet_swing_height,
+#        weight=-0.1,
+#        params={
+#            "sensor_name": "feet_ground_contact",
+#            "height_sensor_name": "foot_height_scan",
+#            "target_height": 0.1,
+#            "command_name": "ballet",
+#            "command_threshold": ballet_mdp.VELOCITY_EPSILON,
+#        },
+#    )
     foot_slip: RewTerm | None = RewTerm(
         func=mdp.feet_slip,
         weight=-0.2,

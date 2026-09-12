@@ -3,14 +3,14 @@
 from mjlab.managers.curriculum_manager import CurriculumTermCfg as CurrTerm
 from mjlab.tasks.velocity import mdp
 
-from wbc_ballet import mdp as ballet_mdp
+from wbc_ballet.tasks.ballet import mdp as ballet_mdp
 from wbc_ballet.utils.configclass import configclass
 
 # These values are intentionally explicit and shared with the PPO runner.
 # MJLab exposes environment steps to curriculum terms, so PPO iterations are
 # converted using the rollout length (num_steps_per_env).
 PPO_STEPS_PER_ITERATION = 24
-WALK_ONLY_ITERATIONS = 300
+WALK_ONLY_ITERATIONS = 1_000
 MASK_RAMP_ITERATIONS = 1_000 # was 5000
 FINAL_MASK_PROBABILITY = 0.15
 TARGET_SCALE_RAMP_ITERATIONS = 1_000 # was 5000
@@ -21,7 +21,7 @@ BALANCE_CURRICULUM_START_ITERATION = WALK_ONLY_ITERATIONS
 BALANCE_CURRICULUM_STAGE_INTERVAL_ITERATIONS = 1_000
 COM_SUPPORT_PROJECTION_STAGE_WEIGHTS = (1.0 / 3.0, 2.0 / 3.0, 1.0)
 PELVIS_HEIGHT_PENALTY_STAGE_WEIGHTS = (-0.5, -1.0, -2.0)
-PUSH_STAGE_HALF_RANGES = (0.15, 0.20, 0.25)
+#PUSH_STAGE_HALF_RANGES = (0.15, 0.20, 0.25)
 
 COMMANDED_LEG_CONTACT_STAGE_INTERVAL_ITERATIONS = 3_000
 COMMANDED_LEG_CONTACT_STAGE_WEIGHTS = (-1.0, -2.0, -3.0, -4.0)
@@ -71,16 +71,16 @@ class BalletCurriculumCfg:
             "stage_weights": COM_SUPPORT_PROJECTION_STAGE_WEIGHTS,
         },
     )
-    push_velocity_range: CurrTerm | None = CurrTerm(
-        func=ballet_mdp.push_velocity_range_curriculum,
-        params={
-            "event_name": "push_robot",
-            "start_steps": BALANCE_CURRICULUM_START_ITERATION * PPO_STEPS_PER_ITERATION,
-            "stage_interval_steps": BALANCE_CURRICULUM_STAGE_INTERVAL_ITERATIONS
-            * PPO_STEPS_PER_ITERATION,
-            "stage_half_ranges": PUSH_STAGE_HALF_RANGES,
-        },
-    )
+#    push_velocity_range: CurrTerm | None = CurrTerm(
+#        func=ballet_mdp.push_velocity_range_curriculum,
+#        params={
+#            "event_name": "push_robot",
+#            "start_steps": BALANCE_CURRICULUM_START_ITERATION * PPO_STEPS_PER_ITERATION,
+#            "stage_interval_steps": BALANCE_CURRICULUM_STAGE_INTERVAL_ITERATIONS
+#            * PPO_STEPS_PER_ITERATION,
+#            "stage_half_ranges": PUSH_STAGE_HALF_RANGES,
+#        },
+#    )
     commanded_leg_ground_contact_weight: CurrTerm | None = CurrTerm(
         func=ballet_mdp.reward_weight_curriculum,
         params={
@@ -107,4 +107,4 @@ class BalletPlayCurriculumCfg(BalletCurriculumCfg):
     target_scale: CurrTerm | None = None
     pelvis_height_penalty_weight: CurrTerm | None = None
     com_support_projection_weight: CurrTerm | None = None
-    push_velocity_range: CurrTerm | None = None
+#    push_velocity_range: CurrTerm | None = None

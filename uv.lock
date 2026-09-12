@@ -1554,6 +1554,7 @@ name = "wbc-ballet"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "gitpython" },
     { name = "mjlab" },
     { name = "numpy" },
     { name = "torch" },
@@ -1568,6 +1569,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "gitpython", specifier = ">=3.1.61" },
     { name = "mjlab", specifier = "==1.5.3" },
     { name = "numpy", specifier = "<2.5" },
     { name = "torch", specifier = "==2.11.0", index = "https://download.pytorch.org/whl/cu128" },

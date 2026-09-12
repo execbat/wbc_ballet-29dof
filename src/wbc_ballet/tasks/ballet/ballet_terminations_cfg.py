@@ -3,7 +3,7 @@
 from mjlab.managers.termination_manager import TerminationTermCfg as DoneTerm
 from mjlab.tasks.velocity import mdp
 
-from wbc_ballet import mdp as ballet_mdp
+from wbc_ballet.tasks.ballet import mdp as ballet_mdp
 from wbc_ballet.utils.configclass import configclass
 
 

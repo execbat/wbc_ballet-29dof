@@ -6,7 +6,7 @@ from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.tasks.velocity import mdp
 from mjlab.utils.noise import UniformNoiseCfg as Unoise
 
-from wbc_ballet import mdp as ballet_mdp
+from wbc_ballet.tasks.ballet import mdp as ballet_mdp
 from wbc_ballet.robots.g1.constants import (
     G1_IMU_ANG_VEL_SENSOR,
     G1_IMU_LIN_ACC_SENSOR,

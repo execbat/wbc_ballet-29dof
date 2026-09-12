@@ -2,7 +2,7 @@
 
 from mjlab.managers.metrics_manager import MetricsTermCfg as MetricTerm
 
-from wbc_ballet import mdp as ballet_mdp
+from wbc_ballet.tasks.ballet import mdp as ballet_mdp
 from wbc_ballet.utils.configclass import configclass
 
 

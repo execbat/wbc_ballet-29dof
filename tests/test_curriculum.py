@@ -3,8 +3,8 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from wbc_ballet.mdp.commands import BalletCommandCfg, blend_joint_targets
-from wbc_ballet.mdp.curriculums import mask_probability_at_step, target_scale_at_step
+from wbc_ballet.tasks.ballet.mdp.commands import BalletCommandCfg, blend_joint_targets
+from wbc_ballet.tasks.ballet.mdp.curriculums import mask_probability_at_step, target_scale_at_step
 from wbc_ballet.tasks.ballet.ballet_curriculum_cfg import (
     FINAL_MASK_PROBABILITY,
     FINAL_TARGET_SCALE,

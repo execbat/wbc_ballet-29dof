@@ -1,6 +1,6 @@
 """Command manager terms for random training and UDP play."""
 
-from wbc_ballet.mdp.commands import BalletCommandCfg, UdpBalletCommandCfg
+from wbc_ballet.tasks.ballet.mdp.commands import BalletCommandCfg, UdpBalletCommandCfg
 from wbc_ballet.utils.configclass import configclass
 
 

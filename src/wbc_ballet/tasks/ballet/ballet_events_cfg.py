@@ -5,7 +5,7 @@ from mjlab.managers.event_manager import EventTermCfg as EventTerm
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.tasks.velocity import mdp
 
-from wbc_ballet import mdp as ballet_mdp
+from wbc_ballet.tasks.ballet import mdp as ballet_mdp
 from wbc_ballet.utils.configclass import configclass
 
 _FOOT_GEOMS = tuple(f"{side}_foot{i}_collision" for side in ("left", "right") for i in range(1, 8))
@@ -40,15 +40,15 @@ class BalletEventsCfg:
             "asset_cfg": SceneEntityCfg("robot", joint_names=(".*",)),
         },
     )
-    push_robot: EventTerm | None = EventTerm(
-        func=mdp.push_by_setting_velocity,
-        mode="interval",
-        interval_range_s=VELOCITY_PUSH_INTERVAL_S,
-        params={
-            "velocity_range": {"x": VELOCITY_PUSH_RANGE, "y": VELOCITY_PUSH_RANGE},
-            "asset_cfg": SceneEntityCfg("robot"),
-        },
-    )
+#    push_robot: EventTerm | None = EventTerm(
+#        func=mdp.push_by_setting_velocity,
+#        mode="interval",
+#        interval_range_s=VELOCITY_PUSH_INTERVAL_S,
+#        params={
+#            "velocity_range": {"x": VELOCITY_PUSH_RANGE, "y": VELOCITY_PUSH_RANGE},
+#            "asset_cfg": SceneEntityCfg("robot"),
+#        },
+#    )
     foot_friction: EventTerm | None = EventTerm(
         mode="startup",
         func=dr.geom_friction,

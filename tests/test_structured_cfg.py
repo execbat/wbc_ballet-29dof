@@ -2,7 +2,7 @@ import os
 
 os.environ.setdefault("MUJOCO_GL", "glfw")
 
-from wbc_ballet import mdp as ballet_mdp
+from wbc_ballet.tasks.ballet import mdp as ballet_mdp
 from wbc_ballet.tasks.ballet import make_ballet_env_cfg
 from wbc_ballet.tasks.ballet.ballet_commands_cfg import BalletCommandsCfg
 from wbc_ballet.tasks.ballet.ballet_curriculum_cfg import (
@@ -18,7 +18,6 @@ from wbc_ballet.tasks.ballet.ballet_observations_cfg import BalletObservationsCf
 from wbc_ballet.tasks.ballet.ballet_rl_cfg import ballet_ppo_runner_cfg
 
 EXPECTED_ACTOR_TERMS = [
-    "base_lin_vel",
     "base_ang_vel",
     "imu_lin_acc",
     "projected_gravity",

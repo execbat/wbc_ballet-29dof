@@ -1,3 +1,37 @@
+# Ballet + Flip — полный репозиторий
+
+Оба таска зарегистрированы напрямую в `src/wbc_ballet/tasks/__init__.py`, одним и
+тем же `register_mjlab_task(...)`. Второй таск назывался `break`; переименован в
+`flip`, чтобы `wbc_ballet.tasks.flip` подключался обычным импортом, без обходного
+`importlib.import_module(...)`, необходимого из-за того, что `break` — зарезервированное
+слово Python. Исправление yaw в ballet уже применено напрямую в
+`wbc_ballet/tasks/ballet/mdp/`.
+
+Структура модульная и одинаковая для обоих тасков: один cfg-файл на менеджер
+(`*_commands_cfg.py`, `*_events_cfg.py`, ...) плюс сборочный `*_env_cfg.py`, а
+реализация command/event/reward-термов — в собственной папке `mdp/` каждого таска
+(`tasks/ballet/mdp/`, `tasks/flip/mdp/`), а не в общей папке верхнего уровня.
+Подробнее — в разделе [Structured task configuration](#structured-task-configuration).
+
+```bash
+uv run train Mjlab-Ballet-Flat-Unitree-G1-29DoF
+uv run train Mjlab-Flip-Flat-Unitree-G1-29DoF
+```
+
+Это альтернативные команды запуска обучения. Rough-вариант ballet также сохранён.
+
+Геймпады:
+
+```bash
+uv run python gamepad/game_emulator_run_v1.py
+uv run python gamepad/game_emulator_run_v2.py
+```
+
+v1 — для ballet (порт 55001); v2 — для flip, с чекбоксом flip-режима (порт 55002).
+Подробности flip: [src/wbc_ballet/tasks/flip/README.md](src/wbc_ballet/tasks/flip/README.md).
+
+---
+
 # wbc_ballet
 
 Train Unitree G1 (29 DoF) to combine locomotion with masked whole-body pose
@@ -95,9 +129,12 @@ scratch after this change.
 
 ## Structured task configuration
 
-The ballet task follows the `microduck_rl/feat/structured_cfg` pattern. Manager
-terms are declarative `@configclass` fields and are converted to MJLab's native
-dictionaries only by `BalletEnvCfg.to_mjlab_cfg()`:
+Both tasks follow the `microduck_rl/feat/structured_cfg` pattern. Manager terms
+are declarative `@configclass` fields and are converted to MJLab's native
+dictionaries only by `<Task>EnvCfg.to_mjlab_cfg()`. Each task owns two things:
+one `*_cfg.py` file per manager (the declarative wiring) and its own `mdp/`
+subpackage (the term *implementations* those cfg files reference) — nothing
+task-specific lives in a shared top-level location.
 
 ```text
 src/wbc_ballet/tasks/ballet/
@@ -111,12 +148,59 @@ src/wbc_ballet/tasks/ballet/
 ├── ballet_rewards_cfg.py
 ├── ballet_rl_cfg.py
 ├── ballet_scene_cfg.py
-└── ballet_terminations_cfg.py
+├── ballet_terminations_cfg.py
+└── mdp/                         # command/event/reward/curriculum/metric/
+    ├── __init__.py               # termination term implementations
+    ├── commands.py
+    ├── curriculums.py
+    ├── events.py
+    ├── metrics.py
+    ├── observations.py
+    ├── rewards.py
+    └── terminations.py
 ```
+
+(`torque_envelope.py`, previously also in this folder, moved to
+`wbc_ballet/robots/g1/` instead — it's generic actuator torque/speed-limit
+math used by the robot's actuator model, not a ballet-specific mdp term, and
+keeping it here would have made the shared robot definition depend on a
+task package.)
 
 An inherited term can be overridden by redeclaring the same field, or disabled
 with `term_name: TermCfg | None = None`. `configclass` deep-copies mutable term
 defaults, so changing a play/rough instance cannot mutate a training/flat one.
+
+The flip task lives next to ballet and follows the identical layout without a
+Rough variant. It overrides actions and terminations and inherits metrics:
+
+```text
+src/wbc_ballet/tasks/flip/
+├── __init__.py
+├── flip_actions_cfg.py
+├── flip_commands_cfg.py
+├── flip_curriculum_cfg.py
+├── flip_env_cfg.py             # assembly only
+├── flip_events_cfg.py
+├── flip_observations_cfg.py
+├── flip_rewards_cfg.py
+├── flip_rl_cfg.py
+├── flip_terminations_cfg.py
+└── mdp/                         # command/event/reward term implementations,
+    ├── __init__.py               # only for this task's own terms
+    ├── commands.py
+    ├── events.py
+    ├── rewards.py
+    └── terminations.py
+```
+
+`wbc_ballet/teleop/flip_protocol.py` holds flip's UDP wire format, sibling of
+`teleop/protocol.py` (ballet's). Both tasks are registered the same way, with
+plain `register_mjlab_task` calls in `tasks/__init__.py` -- the task used to
+be called `break`, which forced an `importlib.import_module` workaround since
+`break` is a reserved Python keyword; renaming it to `flip` removed the need
+for that entirely. See [src/wbc_ballet/tasks/flip/README.md](src/wbc_ballet/tasks/flip/README.md)
+for the task's own details, including how its command classes are named to
+avoid colliding with the boolean flip-mode flag they share a name with.
 
   
 # Launch scene via MuJoCO viewer
@@ -127,30 +211,30 @@ uv run python -m mujoco.viewer \
   
 # Launch trainng
 ```text
-uv run train Mjlab-Ballet-Flat-Unitree-G1-29DoF \
+uv run train Mjlab-Flip-Flat-Unitree-G1-29DoF \
   --env.scene.num-envs 4096 \
-  --agent.save-interval 500 \
+  --agent.save-interval 100 \
   --agent.logger tensorboard  
 ```  
   
 # Launch Play 
 ```text
-uv run play Mjlab-Ballet-Flat-Unitree-G1-29DoF \
-  --checkpoint-file ./logs/rsl_rl/g1_29dof_ballet/2026-09-08_15-53-10_ballet/model_1500.pt \
+uv run play Mjlab-Flip-Flat-Unitree-G1-29DoF \
+  --checkpoint-file ./logs/rsl_rl/g1_29dof_flip/2026-09-12_00-01-12_flip/model_25200.pt \
   --viewer native \
   --num-envs 1
 ```
 
 # Launch Command Window
 ```text
-uv run python ./gamepad/game_emulator_run_v1.py
+uv run python ./gamepad/game_emulator_run_v2.py
 ```
 
 # EXPORT INTO ONNX
 ```text
 uv run python scripts/export.py \
   Mjlab-Ballet-Flat-Unitree-G1-29DoF \
-  --checkpoint-file ./logs/rsl_rl/g1_29dof_ballet/2026-09-05_23-52-26_ballet/model_15500.pt \
+  --checkpoint-file ./logs/rsl_rl/g1_29dof_flip/2026-09-10_17-34-17_flip/model_2000.pt \
   --onnx-file g1_29dof_wbc_ballet.onnx
 ```  
 
@@ -160,3 +244,22 @@ uv run tensorboard \
   --logdir logs/rsl_rl \
   --port 6006
 ```
+
+
+
+
+# Launch Play Ballet
+```text
+uv run play Mjlab-Ballet-Flat-Unitree-G1-29DoF \
+  --checkpoint-file ./model_21500.pt \
+  --viewer native \
+  --num-envs 1
+```
+
+# EXPORT Ballet INTO ONNX
+```text
+uv run python scripts/export.py \
+  Mjlab-Ballet-Flat-Unitree-G1-29DoF \
+  --checkpoint-file ./model_21500.pt \
+  --onnx-file policy.onnx
+```  

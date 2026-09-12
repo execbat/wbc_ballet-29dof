@@ -2,26 +2,26 @@ from types import SimpleNamespace
 
 import torch
 
-from wbc_ballet.mdp import rewards as rewards_module
-from wbc_ballet.mdp.events import print_joint_observation_table
-from wbc_ballet.mdp.metrics import (
+from wbc_ballet.tasks.ballet.mdp import rewards as rewards_module
+from wbc_ballet.tasks.ballet.mdp.events import print_joint_observation_table
+from wbc_ballet.tasks.ballet.mdp.metrics import (
     invalid_physics_value_type,
     nonfinite_physics_component,
     nonfinite_policy_action,
 )
-from wbc_ballet.mdp.observations import (
+from wbc_ballet.tasks.ballet.mdp.observations import (
     masked_ballet_targets,
     support_center_xy_b,
     whole_body_com_xy_b,
 )
-from wbc_ballet.mdp.rewards import (
+from wbc_ballet.tasks.ballet.mdp.rewards import (
     com_support_projection_tracking,
     commanded_leg_ground_contact,
     masked_pose_tracking,
     pelvis_height_penalty,
     unmasked_home_tracking,
 )
-from wbc_ballet.mdp.terminations import non_finite_state_or_action, pelvis_height_below
+from wbc_ballet.tasks.ballet.mdp.terminations import non_finite_state_or_action, pelvis_height_below
 
 
 class _CommandManager:

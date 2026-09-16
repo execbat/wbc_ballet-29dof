@@ -220,7 +220,7 @@ uv run train Mjlab-Flip-Flat-Unitree-G1-29DoF \
 # Launch Play 
 ```text
 uv run play Mjlab-Flip-Flat-Unitree-G1-29DoF \
-  --checkpoint-file ./logs/rsl_rl/g1_29dof_flip/2026-09-12_00-01-12_flip/model_25200.pt \
+  --checkpoint-file ./logs/rsl_rl/g1_29dof_flip/2026-09-15_10-07-00_flip/model_3500.pt \
   --viewer native \
   --num-envs 1
 ```

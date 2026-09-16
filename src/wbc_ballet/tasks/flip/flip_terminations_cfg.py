@@ -7,7 +7,7 @@ from . import mdp
 
 
 def _fell_over():
-    return None #DoneTerm(func=mdp.pelvis_height_below_for_duration, params={"minimum_height": .2, "duration_s": 2., "recovery_height": .35, "recovery_duration_s": 2.})
+    return DoneTerm(func=mdp.pelvis_height_below_for_duration, params={"minimum_height": .2, "duration_s": 2., "recovery_height": .35, "recovery_duration_s": 2.})
 
 
 def _forbidden():
@@ -15,9 +15,10 @@ def _forbidden():
         func=mdp.forbidden_contact_count_exceeded,
         params={
             "sensor_name": "forbidden_ground_contact",
-            "maximum_contacts": 1,
+            "maximum_contacts": 0,
             "contact_interval_s": 0.5,
             "grace_s": 2.0,
+            "enabled": True,
         },
     )
 
@@ -25,7 +26,7 @@ def _forbidden():
 @configclass
 class FlipTerminationsCfg:
     time_out: DoneTerm | None = DoneTerm(func=velocity_mdp.time_out, time_out=True)
-    fell_over: DoneTerm | None = _fell_over()
+    fell_over: DoneTerm | None = None # _fell_over()
     forbidden_ground_contact: DoneTerm | None = _forbidden()
     non_finite_state: DoneTerm | None = DoneTerm(func=mdp.non_finite_state_or_action)
     out_of_terrain_bounds: DoneTerm | None = None
@@ -34,7 +35,7 @@ class FlipTerminationsCfg:
 @configclass
 class FlipPlayTerminationsCfg:
     time_out: DoneTerm | None = None
-    fell_over: DoneTerm | None = _fell_over()
-    forbidden_ground_contact: DoneTerm | None = _forbidden()
+    fell_over: DoneTerm | None = None # _fell_over()
+    forbidden_ground_contact: DoneTerm | None = None # _forbidden()
     non_finite_state: DoneTerm | None = DoneTerm(func=mdp.non_finite_state_or_action)
     out_of_terrain_bounds: DoneTerm | None = None

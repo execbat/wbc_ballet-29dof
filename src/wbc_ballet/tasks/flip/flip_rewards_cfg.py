@@ -22,6 +22,11 @@ _ARMS = (
     SceneEntityCfg("robot", joint_names=(r"left_(shoulder|elbow|wrist)_.*",)),
     SceneEntityCfg("robot", joint_names=(r"right_(shoulder|elbow|wrist)_.*",)),
 )
+_WAIST = SceneEntityCfg(
+    "robot",
+    joint_names=("waist_yaw_joint", "waist_roll_joint", "waist_pitch_joint"),
+    preserve_order=True,
+)
 _SUPPORT_PARAMS = {
     "feet_cfg": _FEET,
     "hands_cfg": _HANDS,
@@ -42,8 +47,12 @@ class FlipRewardsCfg:
     # --- same params as ballet, flip-mode-aware function -----------------
     track_linear_velocity: RewTerm | None = RewTerm(
         func=flip_mdp.track_linear_velocity,
-        weight=2.0,
-        params={"std": math.sqrt(0.25)},
+        weight=3.0,
+        params={"std": 0.22},
+    )
+    linear_velocity_error_penalty: RewTerm | None = RewTerm(
+        func=flip_mdp.linear_velocity_error_penalty,
+        weight=-1.5,
     )
     track_angular_velocity: RewTerm | None = RewTerm(
         func=flip_mdp.track_angular_velocity,
@@ -62,6 +71,43 @@ class FlipRewardsCfg:
         func=flip_mdp.pelvis_height_penalty,
         weight=-1.0,
         params={"target_height": 0.77, "inverted_height": 0.58, "std": 0.18},
+    )
+    # Neutral standing quality.  These are penalties (positive error with
+    # negative weight), not bounded rewards, so increasingly crooked poses
+    # remain increasingly expensive.  They are gated inside the functions to
+    # upright + near-zero velocity and therefore do not fight normal walking.
+    feet_stand_pose_hold: RewTerm | None = RewTerm(
+        func=flip_mdp.feet_stand_pose_hold,
+        weight=-0.25,
+        params={
+            "velocity_epsilon": 0.05,
+            "left_leg_cfg": _LEGS[0],
+            "right_leg_cfg": _LEGS[1],
+        },
+    )
+    feet_flatness_penalty: RewTerm | None = RewTerm(
+        func=flip_mdp.feet_flatness_penalty,
+        weight=-0.10,
+        params={
+            "velocity_epsilon": 0.05,
+            "feet_cfg": _FEET,
+            "left_leg_cfg": _LEGS[0],
+            "right_leg_cfg": _LEGS[1],
+        },
+    )
+    pelvis_orientation_penalty: RewTerm | None = RewTerm(
+        func=flip_mdp.pelvis_orientation_penalty,
+        weight=-0.50,
+    )
+    waist_zero_pose_penalty: RewTerm | None = RewTerm(
+        func=flip_mdp.waist_zero_pose_penalty,
+        weight=-1.0,
+        params={"asset_cfg": _WAIST},
+    )
+    handstand_leg_pose_penalty: RewTerm | None = RewTerm(
+        func=flip_mdp.handstand_leg_pose_penalty,
+        weight=-0.25,
+        params={"left_leg_cfg": _LEGS[0], "right_leg_cfg": _LEGS[1]},
     )
     leg_lateral_alignment: RewTerm | None = RewTerm(
         func=flip_mdp.feet_alignment,
@@ -100,10 +146,15 @@ class FlipRewardsCfg:
         weight=0.5,
         params={
             "std": 0.4,
+            # Waist is controlled separately. Upright unmasked arms retain a
+            # light default-pose prior; inverted legs are handled by the
+            # HANDSTAND_LEGS penalty instead of being pulled to standing home.
             "upright_cfg": SceneEntityCfg(
-                "robot", joint_names=(r"waist_.*", r".*_(shoulder|elbow|wrist)_.*")
+                "robot", joint_names=(r".*_(shoulder|elbow|wrist)_.*",)
             ),
-            "inverted_cfg": SceneEntityCfg("robot", joint_names=(r"waist_.*", r".*_(hip|knee|ankle)_.*")),
+            "inverted_cfg": SceneEntityCfg(
+                "robot", joint_names=(r".*_(hip|knee|ankle)_.*",)
+            ),
         },
     )
     com_support_projection: RewTerm | None = RewTerm(
@@ -121,6 +172,22 @@ class FlipRewardsCfg:
             "right_cfg": _LEGS[1],
             "mode": 0,
         },
+    )
+    upright_foot_clearance: RewTerm | None = RewTerm(
+        func=flip_mdp.upright_feet_clearance,
+        weight=-0.5,
+        params={
+            "target_height": 0.08,
+            "height_sensor_name": "foot_height_scan",
+            "command_name": "ballet",
+            "command_threshold": 0.08,
+            "asset_cfg": _FEET,
+        },
+    )
+    upright_support_switch: RewTerm | None = RewTerm(
+        func=flip_mdp.upright_support_switch_reward,
+        weight=0.30,
+        params={"sensor_name": "feet_ground_contact", "command_threshold": 0.08},
     )
     foot_slip: RewTerm | None = RewTerm(
         func=flip_mdp.slip,
@@ -190,17 +257,13 @@ class FlipRewardsCfg:
     forbidden_support: RewTerm | None = RewTerm(func=flip_mdp.forbidden_support, weight=-20.0)
     head_ground_contact: RewTerm | None = RewTerm(func=flip_mdp.head_ground_contact, weight=-20.0)
     
-    forbidden_ground_contact_penalty: RewTerm | None = RewTerm(
-        func=flip_mdp.forbidden_ground_contact_penalty,
-        weight=-100.0,
-    )
     body_ang_vel: RewTerm | None = RewTerm(
         func=velocity_mdp.body_angular_velocity_penalty,
         weight=-.05,
         params={"asset_cfg": SceneEntityCfg("robot", body_names=("torso_link",))},
     )
     angular_momentum: RewTerm | None = None
-    dof_pos_limits: RewTerm | None = RewTerm(func=velocity_mdp.joint_pos_limits, weight=-1.0)
+    dof_pos_limits: RewTerm | None = RewTerm(func=velocity_mdp.joint_pos_limits, weight=-5.0)
     action_rate_l2: RewTerm | None = RewTerm(func=velocity_mdp.action_rate_l2, weight=-.02)
     air_time: RewTerm | None = None
     self_collisions: RewTerm | None = RewTerm(
@@ -219,3 +282,18 @@ class FlipRewardsCfg:
             "sensor_name": "forbidden_ground_contact",
         },
     )        
+
+
+@configclass
+class FlipPlayRewardsCfg(FlipRewardsCfg):
+    """Play/eval uses the curriculum end-state weights immediately."""
+
+    def __post_init__(self):
+        self.feet_stand_pose_hold.weight = -1.0
+        self.feet_flatness_penalty.weight = -0.5
+        self.pelvis_orientation_penalty.weight = -2.0
+        self.waist_zero_pose_penalty.weight = -4.0
+        self.handstand_leg_pose_penalty.weight = -1.5
+        
+        self.forbidden_contact_termination_penalty = None
+

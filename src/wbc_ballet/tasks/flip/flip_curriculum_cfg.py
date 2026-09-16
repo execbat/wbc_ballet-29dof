@@ -4,6 +4,7 @@ from mjlab.managers.curriculum_manager import CurriculumTermCfg as CurrTerm
 
 from wbc_ballet.utils.configclass import configclass
 from . import mdp
+from mjlab.envs import mdp as env_mdp
 
 PPO_STEPS_PER_ITERATION = 24
 WALK_ONLY_ITERATIONS = 4_000
@@ -21,6 +22,18 @@ PELVIS_HEIGHT_PENALTY_STAGE_WEIGHTS = (-0.5, -1.0, -2.0)
 
 COMMANDED_LEG_CONTACT_STAGE_INTERVAL_ITERATIONS = 3_000
 COMMANDED_LEG_CONTACT_STAGE_WEIGHTS = (-1.0, -2.0, -3.0, -4.0)
+
+# Standing-form regularizers start weak immediately, then become stricter.
+# This prevents the policy from first learning a crooked standing local optimum
+# and only later being asked to unlearn it.
+POSTURE_STAGE_INTERVAL_ITERATIONS = 1_000
+FEET_STAND_POSE_STAGE_WEIGHTS = (-0.25, -0.50, -0.75, -1.00)
+FEET_FLATNESS_STAGE_WEIGHTS = (-0.10, -0.20, -0.35, -0.50)
+PELVIS_ORIENTATION_STAGE_WEIGHTS = (-0.50, -1.00, -1.50, -2.00)
+WAIST_ZERO_STAGE_WEIGHTS = (-1.00, -2.00, -3.00, -4.00)
+HANDSTAND_LEG_POSE_STAGE_WEIGHTS = (-0.25, -0.50, -1.00, -1.50)
+
+FORBIDDEN_CONTACT_TERMINATION_ITERATIONS = 10000
 
 @configclass
 class FlipCurriculumCfg:
@@ -59,6 +72,97 @@ class FlipCurriculumCfg:
             "final_scale": FINAL_TARGET_SCALE,
         },
     )
+
+    feet_stand_pose_hold_weight: CurrTerm | None = CurrTerm(
+        func=mdp.reward_weight_curriculum,
+        params={
+            "reward_name": "feet_stand_pose_hold",
+            "start_steps": 0,
+            "stage_interval_steps": POSTURE_STAGE_INTERVAL_ITERATIONS * PPO_STEPS_PER_ITERATION,
+            "stage_weights": FEET_STAND_POSE_STAGE_WEIGHTS,
+        },
+    )
+    feet_flatness_penalty_weight: CurrTerm | None = CurrTerm(
+        func=mdp.reward_weight_curriculum,
+        params={
+            "reward_name": "feet_flatness_penalty",
+            "start_steps": 0,
+            "stage_interval_steps": POSTURE_STAGE_INTERVAL_ITERATIONS * PPO_STEPS_PER_ITERATION,
+            "stage_weights": FEET_FLATNESS_STAGE_WEIGHTS,
+        },
+    )
+    pelvis_orientation_penalty_weight: CurrTerm | None = CurrTerm(
+        func=mdp.reward_weight_curriculum,
+        params={
+            "reward_name": "pelvis_orientation_penalty",
+            "start_steps": 0,
+            "stage_interval_steps": POSTURE_STAGE_INTERVAL_ITERATIONS * PPO_STEPS_PER_ITERATION,
+            "stage_weights": PELVIS_ORIENTATION_STAGE_WEIGHTS,
+        },
+    )
+    waist_zero_pose_penalty_weight: CurrTerm | None = CurrTerm(
+        func=mdp.reward_weight_curriculum,
+        params={
+            "reward_name": "waist_zero_pose_penalty",
+            "start_steps": 0,
+            "stage_interval_steps": POSTURE_STAGE_INTERVAL_ITERATIONS * PPO_STEPS_PER_ITERATION,
+            "stage_weights": WAIST_ZERO_STAGE_WEIGHTS,
+        },
+    )
+    handstand_leg_pose_penalty_weight: CurrTerm | None = CurrTerm(
+        func=mdp.reward_weight_curriculum,
+        params={
+            "reward_name": "handstand_leg_pose_penalty",
+            "start_steps": 0,
+            "stage_interval_steps": POSTURE_STAGE_INTERVAL_ITERATIONS * PPO_STEPS_PER_ITERATION,
+            "stage_weights": HANDSTAND_LEG_POSE_STAGE_WEIGHTS,
+        },
+    )
+    
+    # SWITCH OFF FORBIDDEN TERMINATION
+    forbidden_ground_contact_termination: CurrTerm | None = CurrTerm(
+        func=env_mdp.termination_curriculum,
+        params={
+            "termination_name": "forbidden_ground_contact",
+            "stages": [
+                {
+                    "step": 0,
+                    "params": {
+                        "enabled": True,
+                    },
+                },
+                {
+                    "step": (
+                        FORBIDDEN_CONTACT_TERMINATION_ITERATIONS
+                        * PPO_STEPS_PER_ITERATION
+                    ),
+                    "params": {
+                        "enabled": False,
+                    },
+                },
+            ],
+        },
+    )    
+    forbidden_contact_termination_penalty_weight: CurrTerm | None = CurrTerm(
+        func=mdp.reward_weight_curriculum,
+        params={
+            "reward_name": "forbidden_contact_termination_penalty",
+            "start_steps": 0,
+            "stage_interval_steps": (
+                FORBIDDEN_CONTACT_TERMINATION_ITERATIONS
+                * PPO_STEPS_PER_ITERATION
+            ),
+            "stage_weights": (
+                -100.0,
+                0.0,
+            ),
+        },
+    )    
+    
+    
+    
+    
+    
 #    pelvis_height_penalty_weight: CurrTerm | None = CurrTerm(
 #        func=mdp.reward_weight_curriculum,
 #        params={
@@ -111,6 +215,11 @@ class FlipPlayCurriculumCfg(FlipCurriculumCfg):
     terrain_levels: CurrTerm | None = None
     mask_probability: CurrTerm | None = None
     target_scale: CurrTerm | None = None
+    feet_stand_pose_hold_weight: CurrTerm | None = None
+    feet_flatness_penalty_weight: CurrTerm | None = None
+    pelvis_orientation_penalty_weight: CurrTerm | None = None
+    waist_zero_pose_penalty_weight: CurrTerm | None = None
+    handstand_leg_pose_penalty_weight: CurrTerm | None = None
     pelvis_height_penalty_weight: CurrTerm | None = None
     com_support_projection_weight: CurrTerm | None = None
     commanded_leg_ground_contact_weight: CurrTerm | None = None

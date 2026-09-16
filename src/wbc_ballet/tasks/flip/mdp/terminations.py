@@ -53,6 +53,7 @@ def forbidden_contact_count_exceeded(
     maximum_contacts: int = 1,
     contact_interval_s: float = 0.5,
     grace_s: float = 0.0,
+    enabled: bool = True,
 ) -> torch.Tensor:
     """Terminate after the forbidden-contact counter exceeds its limit.
 
@@ -60,6 +61,9 @@ def forbidden_contact_count_exceeded(
     contact_interval_s. Therefore lying continuously on a forbidden body
     cannot be treated as only one contact.
     """
+    if not enabled:
+        return torch.zeros(env.num_envs, dtype=torch.bool, device=env.device,)
+    
     num_envs = env.num_envs
     device = env.device
     dt = float(env.step_dt)

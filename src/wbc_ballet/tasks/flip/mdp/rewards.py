@@ -2,12 +2,13 @@
 import torch
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.utils.lab_api.math import quat_apply
+from mjlab.tasks.velocity import mdp as velocity_mdp
 from .observations import (
     _group_has_active_mask, _world_xy_to_base_heading,
     ballet_mask, ballet_targets, joint_pos_normalized,
     whole_body_com_xy_b, support_center_xy_b,
 )
-from .events import HANDSTAND_LEFT
+from .events import HANDSTAND_LEFT, HANDSTAND_LEGS, handstand_value
 
 _ROBOT_CFG = SceneEntityCfg("robot")
 
@@ -110,6 +111,202 @@ def pelvis_height_penalty(env, target_height=.77, inverted_height=.58, std=.18):
     return ((z - target) / std).square()
 
 
+def _stationary_ballet(env, velocity_epsilon=.05):
+    """Return True where the commanded planar velocity/yaw rate is near zero."""
+    return env.command_manager.get_command("ballet")[:, :3].abs().amax(1) < velocity_epsilon
+
+
+def _joint_tolerance(name: str) -> float:
+    """Desired neutral-pose tolerance in radians for posture penalties."""
+    if "hip_pitch" in name:
+        return 0.25
+    if "hip_roll" in name or "hip_yaw" in name:
+        return 0.15
+    if "knee" in name:
+        return 0.25
+    if "ankle_pitch" in name:
+        return 0.15
+    if "ankle_roll" in name:
+        return 0.12
+    return 0.20
+
+
+def _huber_normalized(error: torch.Tensor, tolerance: torch.Tensor) -> torch.Tensor:
+    """Huber error after scaling each axis by a physically meaningful tolerance."""
+    x = error / tolerance.clamp_min(1.0e-6)
+    ax = x.abs()
+    return torch.where(ax < 1.0, 0.5 * x.square(), ax - 0.5)
+
+
+def feet_stand_pose_hold(
+    env,
+    velocity_epsilon=.05,
+    asset_cfg=_ROBOT_CFG,
+    *,
+    left_leg_cfg,
+    right_leg_cfg,
+):
+    """Strong neutral-standing prior for all 12 leg joints.
+
+    Only active for upright, near-zero commanded velocity, and when neither
+    leg has any ballet mask.  Unlike the old version this does *not* normalize
+    by the huge mechanical joint ranges: every axis has a small posture
+    tolerance in radians, so a visibly crooked stand remains expensive.
+    """
+    robot = env.scene[asset_cfg.name]
+    leg_ids = list(left_leg_cfg.joint_ids) + list(right_leg_cfg.joint_ids)
+    names = [robot.joint_names[i] for i in leg_ids]
+    tol = torch.tensor([_joint_tolerance(n) for n in names], device=env.device, dtype=robot.data.joint_pos.dtype)
+    err = robot.data.joint_pos[:, leg_ids] - robot.data.default_joint_pos[:, leg_ids]
+    error = _huber_normalized(err, tol).mean(1)
+
+    no_leg_masks = (~_group_has_active_mask(env, left_leg_cfg) & ~_group_has_active_mask(env, right_leg_cfg))
+    active = (~inverted(env)) & _stationary_ballet(env, velocity_epsilon) & no_leg_masks
+    return error * active.float()
+
+
+def handstand_leg_pose_penalty(
+    env,
+    asset_cfg=_ROBOT_CFG,
+    *,
+    left_leg_cfg,
+    right_leg_cfg,
+):
+    """Keep unmasked legs near the symmetric HANDSTAND_LEGS reference.
+
+    This replaces the old inverted ``home_tracking`` conflict: in handstand
+    mode the action reference and this penalty now agree on the same leg pose.
+    Masked axes are individually exempted.
+    """
+    robot = env.scene[asset_cfg.name]
+    leg_ids = list(left_leg_cfg.joint_ids) + list(right_leg_cfg.joint_ids)
+    names = [robot.joint_names[i] for i in leg_ids]
+    target = torch.tensor([handstand_value(n) for n in names], device=env.device, dtype=robot.data.joint_pos.dtype)
+    tol = torch.tensor([_joint_tolerance(n) for n in names], device=env.device, dtype=robot.data.joint_pos.dtype)
+    err = _huber_normalized(robot.data.joint_pos[:, leg_ids] - target, tol)
+    mask = ballet_mask(env)[:, leg_ids]
+    unmasked = 1.0 - mask
+    count = unmasked.sum(1)
+    value = (err * unmasked).sum(1) / count.clamp_min(1.0)
+    value = torch.where(count > 0, value, torch.zeros_like(value))
+    return value * inverted(env).float()
+
+
+def feet_flatness_penalty(
+    env,
+    velocity_epsilon=.05,
+    asset_cfg=_ROBOT_CFG,
+    *,
+    feet_cfg,
+    left_leg_cfg,
+    right_leg_cfg,
+):
+    """Penalize toe/heel/edge standing while stationary and upright."""
+    robot = env.scene[asset_cfg.name]
+    quat = robot.data.site_quat_w[:, feet_cfg.site_ids]
+    local_z = torch.zeros_like(quat[..., :3]); local_z[..., 2] = 1.0
+    foot_z_w = quat_apply(quat, local_z)
+    side_error = foot_z_w[..., :2].square().sum(2)
+    eligible = torch.stack((~_group_has_active_mask(env, left_leg_cfg), ~_group_has_active_mask(env, right_leg_cfg)), dim=1)
+    eligible &= ((~inverted(env)) & _stationary_ballet(env, velocity_epsilon))[:, None]
+    count = eligible.sum(1)
+    value = (side_error * eligible.float()).sum(1) / count.clamp_min(1)
+    return torch.where(count > 0, value, torch.zeros_like(value))
+
+
+def pelvis_orientation_penalty(env, asset_cfg=_ROBOT_CFG):
+    """Mode-aware pelvis orientation penalty, active in both support modes.
+
+    Upright wants the pelvis local +Z aligned with world +Z; handstand wants it
+    aligned with world -Z.  Yaw is unconstrained.  This closes the exploit in
+    which pelvis tilt is cancelled by an extreme waist bend while torso_link
+    still receives a good ``upright`` reward.
+    """
+    robot = env.scene[asset_cfg.name]
+    quat = robot.data.root_link_quat_w
+    local_z = torch.zeros_like(quat[..., :3]); local_z[..., 2] = 1.0
+    pelvis_z_w = quat_apply(quat, local_z)
+    desired_sign = torch.where(inverted(env), -1.0, 1.0)
+    # 1-cos(theta) behaves quadratically for small tilt and stays informative
+    # all the way to the wrong orientation.
+    return 1.0 - desired_sign * pelvis_z_w[:, 2]
+
+
+def waist_zero_pose_penalty(env, asset_cfg):
+    """Strong mask-aware waist regularizer in raw radians.
+
+    The previous mechanical-range normalization made a waist sitting on its
+    physical limits too cheap.  Here yaw/roll/pitch squared errors are summed
+    directly, so ±0.5 rad bends carry a meaningful cost.
+    """
+    robot = env.scene[asset_cfg.name]
+    ids = asset_cfg.joint_ids
+    q = robot.data.joint_pos[:, ids]
+    unmasked = 1.0 - _selected_command_axes(ballet_mask(env), asset_cfg)
+    return (q.square() * unmasked).sum(1)
+
+
+def linear_velocity_error_penalty(env, asset_cfg=_ROBOT_CFG):
+    """Unbounded planar velocity tracking error in heading coordinates."""
+    robot = env.scene[asset_cfg.name]
+    v = robot.data.root_link_lin_vel_w
+    h = robot.data.heading_w
+    actual = torch.stack((h.cos()*v[:, 0] + h.sin()*v[:, 1], -h.sin()*v[:, 0] + h.cos()*v[:, 1]), 1)
+    cmd = env.command_manager.get_command('ballet')[:, :2]
+    return (cmd - actual).square().sum(1)
+
+
+def upright_feet_clearance(
+    env,
+    target_height=.08,
+    height_sensor_name='foot_height_scan',
+    command_name='ballet',
+    command_threshold=.08,
+    asset_cfg=None,
+):
+    """Penalize moving feet that stay too low/high during upright locomotion.
+
+    Uses the already-supported ``velocity_mdp.foot_height`` observation helper
+    instead of depending on an optional MJLab reward helper.  The error is
+    weighted by each foot's planar speed, so the stance foot at ground height
+    is not penalized while a swinging/moving foot is encouraged toward the
+    requested clearance.
+    """
+    if asset_cfg is None:
+        raise ValueError('asset_cfg with left/right foot site ids is required')
+    robot = env.scene[asset_cfg.name]
+    height = velocity_mdp.foot_height(env, sensor_name=height_sensor_name)
+    # Keep the last dimension aligned to the selected two foot sites.
+    height = height.reshape(env.num_envs, -1)[:, :len(asset_cfg.site_ids)]
+    planar_speed = robot.data.site_lin_vel_w[:, asset_cfg.site_ids, :2].norm(dim=2)
+    error = (height - target_height).square() * planar_speed
+    moving = env.command_manager.get_command(command_name)[:, :3].abs().amax(1) >= command_threshold
+    active = moving & (~inverted(env))
+    return error.sum(1) * active.float()
+
+
+def upright_support_switch_reward(env, sensor_name='feet_ground_contact', command_threshold=.08):
+    """Small event reward for alternating left/right single support.
+
+    No hidden gait phase is introduced.  While commanded to move upright, a
+    reward pulse is emitted only when the currently supported foot changes
+    from the previous valid single-support foot.  This discourages a static
+    one-foot/hopping local optimum without changing the actor observation ABI.
+    """
+    c = contacts(env, sensor_name, ('left_ankle_roll_link', 'right_ankle_roll_link'))
+    single = c[:, 0] ^ c[:, 1]
+    side = torch.where(c[:, 0], torch.zeros(env.num_envs, device=env.device, dtype=torch.long), torch.ones(env.num_envs, device=env.device, dtype=torch.long))
+    if not hasattr(env, '_flip_last_foot_support'):
+        env._flip_last_foot_support = torch.full((env.num_envs,), -1, device=env.device, dtype=torch.long)
+    reset = env.episode_length_buf <= 1
+    env._flip_last_foot_support[reset] = -1
+    prev = env._flip_last_foot_support.clone()
+    switched = single & (prev >= 0) & (side != prev)
+    env._flip_last_foot_support = torch.where(single, side, env._flip_last_foot_support)
+    moving = env.command_manager.get_command('ballet')[:, :3].abs().amax(1) >= command_threshold
+    return (switched & moving & (~inverted(env))).float()
+
+
 def track_angular_velocity(env, std, asset_cfg=_ROBOT_CFG):
     command = env.command_manager.get_command('ballet')[:, 2]
     actual = env.scene[asset_cfg.name].data.root_link_ang_vel_w[:, 2]
@@ -141,10 +338,11 @@ def foot_heading(env, **kwargs):
 
 
 def home_tracking(env, std, upright_cfg, inverted_cfg):
-    # Arms free for inverted locomotion; legs free for upright locomotion.
+    # Upright: keep unmasked arms near their default pose.
+    # Inverted: do NOT pull legs to the standing default; handstand legs are
+    # governed by handstand_leg_pose_penalty using HANDSTAND_LEGS instead.
     a = unmasked_home_tracking(env, std, upright_cfg)
-    b = unmasked_home_tracking(env, std, inverted_cfg)
-    return torch.where(inverted(env), b, a)
+    return torch.where(inverted(env), torch.zeros_like(a), a)
 
 
 def active_masks(env, left_leg_cfg, right_leg_cfg, left_arm_cfg, right_arm_cfg):
@@ -166,10 +364,11 @@ def support_center(env, feet_cfg, hands_cfg, left_leg_cfg, right_leg_cfg,
 def com_support_projection(env, std=.12, velocity_epsilon=.05, **kwargs):
     left, right = active_masks(env, **{k:v for k,v in kwargs.items() if k not in ('feet_cfg','hands_cfg')})
     moving = env.command_manager.get_command('ballet')[:, :3].abs().amax(1) >= velocity_epsilon
-    # Hand-support balance is precarious even standing still -- unlike two
-    # feet, two hands don't give a trivially stable base for free. Always on
-    # while inverted, not just while moving or single-support.
-    active = (inverted(env) | moving | (left ^ right)) & ~(left & right)
+    # At zero command, centering COM over the support polygon is useful.
+    # During locomotion with no support mask it is deliberately OFF: forcing
+    # COM toward the midpoint of both feet/hands suppresses weight transfer and
+    # was a strong local optimum for standing instead of walking.
+    active = ((~moving) | (left ^ right)) & ~(left & right)
     error = (whole_body_com_xy_b(env) - support_center(env, **kwargs)).square().sum(1)
     return torch.exp(-error / std**2) * active.float()
 

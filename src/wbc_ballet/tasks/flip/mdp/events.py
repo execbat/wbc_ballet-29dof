@@ -41,7 +41,7 @@ HANDSTAND_LEGS = {
     'hip_pitch': .5445615503, 'hip_roll': 0., 'hip_yaw': 0.,
     'knee': .4492760091, 'ankle_pitch': .0006505147, 'ankle_roll': 0.,
 }
-HANDSTAND_WAIST = {'waist_yaw': 0., 'waist_roll': 0., 'waist_pitch': -.0438119983}
+HANDSTAND_WAIST = {'waist_yaw': 0., 'waist_roll': 0., 'waist_pitch': 0.}
 # Measured against the flat hand-support boxes in this repository's g1.xml.
 HANDSTAND_HEIGHT = .58
 

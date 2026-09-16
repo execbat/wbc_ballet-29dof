@@ -14,7 +14,7 @@ from .flip_curriculum_cfg import FlipCurriculumCfg, FlipPlayCurriculumCfg
 from .flip_events_cfg import FlipEventsCfg, FlipPlayEventsCfg
 from .flip_metrics_cfg import FlipMetricsCfg
 from .flip_observations_cfg import FlipObservationsCfg
-from .flip_rewards_cfg import FlipRewardsCfg
+from .flip_rewards_cfg import FlipPlayRewardsCfg, FlipRewardsCfg
 from .flip_scene_cfg import make_flip_scene_cfg
 from .flip_terminations_cfg import FlipPlayTerminationsCfg, FlipTerminationsCfg
 
@@ -68,7 +68,7 @@ class FlipEnvCfg_PLAY:
     actions: FlipActionsCfg = FlipActionsCfg()
     commands: FlipUdpCommandsCfg = FlipUdpCommandsCfg()
     events: FlipPlayEventsCfg = FlipPlayEventsCfg()
-    rewards: FlipRewardsCfg = FlipRewardsCfg()
+    rewards: FlipPlayRewardsCfg = FlipPlayRewardsCfg()
     terminations: FlipPlayTerminationsCfg = FlipPlayTerminationsCfg()
     curriculum: FlipPlayCurriculumCfg = FlipPlayCurriculumCfg()
     metrics: FlipMetricsCfg = FlipMetricsCfg()
@@ -79,6 +79,22 @@ class FlipEnvCfg_PLAY:
 
     def __post_init__(self):
         self.observations.actor.enable_corruption = False
+        
+        # -------------------------------------------------
+        # Disable forbidden-contact termination in PLAY.
+        # -------------------------------------------------
+        self.terminations.forbidden_ground_contact = None
+
+        # Curriculum must also be disabled because the
+        # termination term no longer exists.
+        self.curriculum.forbidden_ground_contact_termination = None
+
+        # Terminal reward depending on that termination
+        # must also be disabled.
+        self.rewards.forbidden_contact_termination_penalty = None
+
+        # If you have curriculum changing its weight:
+        self.curriculum.forbidden_contact_termination_penalty_weight = None
 
     def to_mjlab_cfg(self):
         return _to_mjlab_cfg(self)
